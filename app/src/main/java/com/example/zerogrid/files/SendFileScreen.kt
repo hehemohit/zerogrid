@@ -22,16 +22,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.navigation.Screen
+import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
-fun SendFileScreen() {
+fun SendFileScreen(onNavigate: (Screen) -> Unit = {}) {
     var selectedPermission by remember { mutableStateOf("Downloadable") }
 
     Scaffold(
         containerColor = DarkBackground,
-        topBar = { SendFileTopBar() },
-        bottomBar = { DashboardBottomNavFilesActive() }
+        topBar = { SendFileTopBar(onBackClick = { onNavigate(Screen.FILES) }) },
+        bottomBar = { ZeroGridBottomBar(currentScreen = Screen.FILES, onNavigate = onNavigate) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -122,7 +124,7 @@ fun SendFileScreen() {
 }
 
 @Composable
-private fun SendFileTopBar() {
+private fun SendFileTopBar(onBackClick: () -> Unit = {}) {
     Column {
         Row(
             modifier = Modifier
@@ -132,13 +134,15 @@ private fun SendFileTopBar() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = StatusActive,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Send File",
                     color = StatusActive,

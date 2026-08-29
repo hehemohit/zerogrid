@@ -22,15 +22,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.ui.theme.*
 
 @Composable
-fun ChatDetailScreen() {
+fun ChatDetailScreen(onNavigate: (Screen) -> Unit = {}) {
     var messageText by remember { mutableStateOf("") }
 
     Scaffold(
         containerColor = DarkBackground,
-        topBar = { ChatDetailTopBar() },
+        topBar = { ChatDetailTopBar(onBackClick = { onNavigate(Screen.MESSAGES) }) },
         bottomBar = { ChatBottomBar(messageText = messageText, onValueChange = { messageText = it }) }
     ) { paddingValues ->
         Column(
@@ -99,7 +100,7 @@ fun ChatDetailScreen() {
 }
 
 @Composable
-private fun ChatDetailTopBar() {
+private fun ChatDetailTopBar(onBackClick: () -> Unit = {}) {
     Column {
         Row(
             modifier = Modifier
@@ -109,13 +110,15 @@ private fun ChatDetailTopBar() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = StatusActive,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
                 Box(
                     modifier = Modifier
                         .size(36.dp)

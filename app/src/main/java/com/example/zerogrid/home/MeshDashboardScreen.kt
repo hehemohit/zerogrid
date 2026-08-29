@@ -22,15 +22,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.navigation.Screen
+import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
-fun MeshDashboardScreen() {
+fun MeshDashboardScreen(onNavigate: (Screen) -> Unit = {}) {
     Scaffold(
         containerColor = DarkBackground,
         topBar = { DashboardTopBar() },
-        bottomBar = { DashboardBottomNav() },
-        floatingActionButton = { SOSFab() }
+        bottomBar = { ZeroGridBottomBar(currentScreen = Screen.HOME, onNavigate = onNavigate) },
+        floatingActionButton = { SOSFab(onNavigate = onNavigate) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -42,9 +44,9 @@ fun MeshDashboardScreen() {
             Spacer(modifier = Modifier.height(16.dp))
             MeshStatusCard()
             Spacer(modifier = Modifier.height(16.dp))
-            QuickActionsGrid()
+            QuickActionsGrid(onNavigate = onNavigate)
             Spacer(modifier = Modifier.height(24.dp))
-            NearbyDevicesSection()
+            NearbyDevicesSection(onNavigate = onNavigate)
             Spacer(modifier = Modifier.height(32.dp)) // Extra space for FAB
         }
     }
@@ -185,7 +187,7 @@ private fun MetricCard(label: String, value: String, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun QuickActionsGrid() {
+private fun QuickActionsGrid(onNavigate: (Screen) -> Unit) {
     Column {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             QuickActionCard(
@@ -193,14 +195,16 @@ private fun QuickActionsGrid() {
                 icon = Icons.Outlined.ChatBubbleOutline,
                 title = "Messages",
                 badgeText = "3 unread",
-                iconTint = StatusActive
+                iconTint = StatusActive,
+                onClick = { onNavigate(Screen.MESSAGES) }
             )
             QuickActionCard(
                 modifier = Modifier.weight(1f),
                 icon = Icons.Outlined.Share,
                 title = "Mesh Network",
                 subtitle = "12 peers",
-                iconTint = StatusActive
+                iconTint = StatusActive,
+                onClick = { onNavigate(Screen.MESH) }
             )
         }
         Spacer(modifier = Modifier.height(12.dp))
@@ -210,16 +214,18 @@ private fun QuickActionsGrid() {
                 icon = Icons.Outlined.Folder,
                 title = "Files",
                 subtitle = "2 active transfers",
-                iconTint = StatusActive
+                iconTint = StatusActive,
+                onClick = { onNavigate(Screen.FILES) }
             )
             QuickActionCard(
                 modifier = Modifier.weight(1f),
-                icon = Icons.Outlined.Emergency, // Using Emergency for asterisk
+                icon = Icons.Outlined.Emergency,
                 title = "SOS",
                 subtitle = "2 active alerts",
                 iconTint = AlertPink,
                 borderColor = AlertRedBorder,
-                subtitleColor = AlertPink
+                subtitleColor = AlertPink,
+                onClick = { onNavigate(Screen.SOS_CENTER) }
             )
         }
     }
@@ -234,9 +240,11 @@ private fun QuickActionCard(
     badgeText: String? = null,
     iconTint: Color,
     borderColor: Color = Color.Transparent,
-    subtitleColor: Color = TextSecondary
+    subtitleColor: Color = TextSecondary,
+    onClick: () -> Unit = {}
 ) {
     Card(
+        onClick = onClick,
         modifier = modifier
             .height(120.dp)
             .border(1.dp, borderColor, RoundedCornerShape(12.dp)),
@@ -278,7 +286,7 @@ private fun QuickActionCard(
 }
 
 @Composable
-private fun NearbyDevicesSection() {
+private fun NearbyDevicesSection(onNavigate: (Screen) -> Unit) {
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -286,9 +294,11 @@ private fun NearbyDevicesSection() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(text = "Nearby Devices", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text(text = "View All", color = StatusActive, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
+            TextButton(onClick = { onNavigate(Screen.MESH) }) {
+                Text(text = "View All", color = StatusActive, fontSize = 14.sp, fontFamily = FontFamily.Monospace)
+            }
         }
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
         Card(
             colors = CardDefaults.cardColors(containerColor = CardBackground),
             shape = RoundedCornerShape(12.dp)
@@ -327,9 +337,9 @@ private fun DeviceItem(icon: ImageVector, name: String, status: String, strength
 }
 
 @Composable
-private fun SOSFab() {
+private fun SOSFab(onNavigate: (Screen) -> Unit) {
     FloatingActionButton(
-        onClick = { /* Trigger SOS */ },
+        onClick = { onNavigate(Screen.SEND_SOS) },
         containerColor = AlertPink,
         contentColor = Color.Black,
         shape = CircleShape,

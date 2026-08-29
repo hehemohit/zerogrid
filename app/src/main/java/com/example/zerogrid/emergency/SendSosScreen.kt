@@ -22,17 +22,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.ui.theme.*
 
 @Composable
-fun SendSosScreen() {
+fun SendSosScreen(onNavigate: (Screen) -> Unit = {}) {
     var selectedType by remember { mutableStateOf("Medical") }
     var emergencyMessage by remember { mutableStateOf("") }
     var locationSharingEnabled by remember { mutableStateOf(true) }
 
     Scaffold(
         containerColor = DarkBackground,
-        topBar = { SendSosTopBar() }
+        topBar = { SendSosTopBar(onBackClick = { onNavigate(Screen.SOS_CENTER) }) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -183,7 +184,7 @@ fun SendSosScreen() {
 }
 
 @Composable
-private fun SendSosTopBar() {
+private fun SendSosTopBar(onBackClick: () -> Unit = {}) {
     Column {
         Row(
             modifier = Modifier
@@ -193,13 +194,15 @@ private fun SendSosTopBar() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = StatusActive,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Send SOS",
                     color = StatusActive,

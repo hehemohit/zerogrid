@@ -21,16 +21,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.navigation.Screen
+import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
-fun ChannelsScreen() {
+fun ChannelsScreen(onNavigate: (Screen) -> Unit = {}) {
     var selectedFilter by remember { mutableStateOf("All") }
 
     Scaffold(
         containerColor = DarkBackground,
-        topBar = { ChannelsTopBar() },
-        bottomBar = { DashboardBottomNavMessagesActive() }
+        topBar = { ChannelsTopBar(onBackClick = { onNavigate(Screen.MESSAGES) }) },
+        bottomBar = { ZeroGridBottomBar(currentScreen = Screen.MESSAGES, onNavigate = onNavigate) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -95,7 +97,7 @@ fun ChannelsScreen() {
 }
 
 @Composable
-private fun ChannelsTopBar() {
+private fun ChannelsTopBar(onBackClick: () -> Unit = {}) {
     Column {
         Row(
             modifier = Modifier
@@ -105,13 +107,15 @@ private fun ChannelsTopBar() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = StatusActive,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Channels",
                     color = StatusActive,

@@ -20,10 +20,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.navigation.Screen
+import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onNavigate: (Screen) -> Unit = {}) {
     var meshDiscoveryEnabled by remember { mutableStateOf(true) }
     var automaticSwitchingEnabled by remember { mutableStateOf(true) }
     var relayModeEnabled by remember { mutableStateOf(true) }
@@ -32,7 +34,7 @@ fun SettingsScreen() {
     Scaffold(
         containerColor = DarkBackground,
         topBar = { SettingsTopBar() },
-        bottomBar = { DashboardBottomNavSettingsActive() }
+        bottomBar = { ZeroGridBottomBar(currentScreen = Screen.SETTINGS, onNavigate = onNavigate) }
     ) { paddingValues ->
         Column(
             modifier = Modifier

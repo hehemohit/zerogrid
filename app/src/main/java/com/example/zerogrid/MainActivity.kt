@@ -8,11 +8,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.example.zerogrid.navigation.ZeroGridApp
 import com.example.zerogrid.ui.theme.ZeroGridTheme
 
 @Composable
 fun ZeroGridScreen() {
-    MeshDashboardScreen()
+    ZeroGridApp()
 }
 
 class MainActivity : ComponentActivity() {

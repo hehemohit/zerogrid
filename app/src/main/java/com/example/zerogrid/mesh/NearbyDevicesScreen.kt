@@ -24,16 +24,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.navigation.Screen
+import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
-fun NearbyDevicesScreen() {
+fun NearbyDevicesScreen(onNavigate: (Screen) -> Unit = {}) {
     var selectedFilter by remember { mutableStateOf("All") }
 
     Scaffold(
         containerColor = DarkBackground,
         topBar = { NearbyTopBar() },
-        bottomBar = { DashboardBottomNavActiveMesh() }
+        bottomBar = { ZeroGridBottomBar(currentScreen = Screen.MESH, onNavigate = onNavigate) }
     ) { paddingValues ->
         Column(
             modifier = Modifier

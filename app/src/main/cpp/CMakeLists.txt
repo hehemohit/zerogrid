@@ -35,3 +35,7 @@ target_link_libraries(${CMAKE_PROJECT_NAME}
     # List libraries link to the target library
     android
     log)
+
+# Required for Google Play: align LOAD segments to 16 KB page size boundaries
+# for compatibility with Android 15+ 16 KB kernel devices.
+target_link_options(${CMAKE_PROJECT_NAME} PRIVATE "-Wl,-z,max-page-size=16384")

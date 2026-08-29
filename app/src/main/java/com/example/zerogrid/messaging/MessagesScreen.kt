@@ -19,16 +19,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.navigation.Screen
+import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
-fun MessagesScreen() {
+fun MessagesScreen(onNavigate: (Screen) -> Unit = {}) {
     var selectedFilter by remember { mutableStateOf("All") }
 
     Scaffold(
         containerColor = DarkBackground,
         topBar = { MessagesTopBar() },
-        bottomBar = { DashboardBottomNavMessages() },
+        bottomBar = { ZeroGridBottomBar(currentScreen = Screen.MESSAGES, onNavigate = onNavigate) },
         floatingActionButton = { NewMessageFab() }
     ) { paddingValues ->
         Column(

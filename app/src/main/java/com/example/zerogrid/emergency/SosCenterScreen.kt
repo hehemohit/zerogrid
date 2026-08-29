@@ -22,14 +22,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.navigation.Screen
+import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
-fun SosCenterScreen() {
+fun SosCenterScreen(onNavigate: (Screen) -> Unit = {}) {
     Scaffold(
         containerColor = DarkBackground,
-        topBar = { EmergencyTopBar() },
-        bottomBar = { DashboardBottomNavMeshActive() }
+        topBar = { EmergencyTopBar(onBackClick = { onNavigate(Screen.HOME) }) },
+        bottomBar = { ZeroGridBottomBar(currentScreen = Screen.SOS_CENTER, onNavigate = onNavigate) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -43,7 +45,7 @@ fun SosCenterScreen() {
             Spacer(modifier = Modifier.height(16.dp))
 
             // Emergency SOS Action Card
-            EmergencySosCard()
+            EmergencySosCard(onSendSosClick = { onNavigate(Screen.SEND_SOS) })
             Spacer(modifier = Modifier.height(24.dp))
 
             // Active Emergency Alerts Section
@@ -138,7 +140,7 @@ fun SosCenterScreen() {
 }
 
 @Composable
-private fun EmergencyTopBar() {
+private fun EmergencyTopBar(onBackClick: () -> Unit = {}) {
     Column {
         Row(
             modifier = Modifier
@@ -148,13 +150,15 @@ private fun EmergencyTopBar() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = StatusActive,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Emergency Center",
                     color = StatusActive,
@@ -202,7 +206,7 @@ private fun MeshStatusBanner() {
 }
 
 @Composable
-private fun EmergencySosCard() {
+private fun EmergencySosCard(onSendSosClick: () -> Unit = {}) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -240,7 +244,7 @@ private fun EmergencySosCard() {
             )
             Spacer(modifier = Modifier.height(20.dp))
             Button(
-                onClick = { },
+                onClick = onSendSosClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),

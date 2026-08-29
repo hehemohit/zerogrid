@@ -21,16 +21,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.navigation.Screen
+import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
-fun PeerDetailsScreen() {
+fun PeerDetailsScreen(onNavigate: (Screen) -> Unit = {}) {
     var trustDevice by remember { mutableStateOf(true) }
 
     Scaffold(
         containerColor = DarkBackground,
-        topBar = { PeerDetailsTopBar() },
-        bottomBar = { DashboardBottomNavActiveMesh() }
+        topBar = { PeerDetailsTopBar(onBackClick = { onNavigate(Screen.MESH) }) },
+        bottomBar = { ZeroGridBottomBar(currentScreen = Screen.MESH, onNavigate = onNavigate) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -62,7 +64,7 @@ fun PeerDetailsScreen() {
 }
 
 @Composable
-private fun PeerDetailsTopBar() {
+private fun PeerDetailsTopBar(onBackClick: () -> Unit = {}) {
     Column {
         Row(
             modifier = Modifier
@@ -72,13 +74,15 @@ private fun PeerDetailsTopBar() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = StatusActive,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Peer Details",
                     color = StatusActive,

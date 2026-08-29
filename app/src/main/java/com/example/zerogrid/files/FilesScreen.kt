@@ -22,17 +22,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.navigation.Screen
+import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
-fun FilesScreen() {
+fun FilesScreen(onNavigate: (Screen) -> Unit = {}) {
     Scaffold(
         containerColor = DarkBackground,
         topBar = { FilesTopBar() },
-        bottomBar = { DashboardBottomNavFilesActive() },
+        bottomBar = { ZeroGridBottomBar(currentScreen = Screen.FILES, onNavigate = onNavigate) },
         floatingActionButton = {
             FloatingActionButton(
-                onClick = { },
+                onClick = { onNavigate(Screen.SEND_FILE) },
                 containerColor = StatusActive,
                 contentColor = Color.Black,
                 shape = CircleShape

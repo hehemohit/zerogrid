@@ -559,6 +559,9 @@ private fun AttachButton(modifier: Modifier = Modifier, icon: ImageVector, label
     }
 }
 
+@Composable
+fun ZeroGridSendSosScreen() = SendSosScreen()
+
 @Preview(showBackground = true)
 @Composable
 fun ZeroGridSendSosPreview() {

@@ -522,6 +522,9 @@ private fun DashboardBottomNavFilesActive() {
     }
 }
 
+@Composable
+fun ZeroGridSendFileScreen() = SendFileScreen()
+
 @Preview(showBackground = true)
 @Composable
 fun ZeroGridSendFilePreview() {

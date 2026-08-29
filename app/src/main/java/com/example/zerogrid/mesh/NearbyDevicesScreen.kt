@@ -2,6 +2,7 @@ package com.example.zerogrid
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -336,7 +337,7 @@ private fun DeviceCard(
 }
 
 @Composable
-private fun DashboardBottomNavActiveMesh() {
+fun DashboardBottomNavActiveMesh() {
     NavigationBar(
         containerColor = BottomNavBg,
         contentColor = TextSecondary,
@@ -366,6 +367,9 @@ private fun DashboardBottomNavActiveMesh() {
         }
     }
 }
+
+@Composable
+fun ZeroGridNearbyDevicesScreen() = NearbyDevicesScreen()
 
 @Preview(showBackground = true)
 @Composable

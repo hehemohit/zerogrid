@@ -1,5 +1,6 @@
 package com.example.zerogrid
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -649,6 +650,9 @@ private fun DashboardBottomNavMeshActive() {
         }
     }
 }
+
+@Composable
+fun ZeroGridEmergencyCenterScreen() = SosCenterScreen()
 
 @Preview(showBackground = true)
 @Composable

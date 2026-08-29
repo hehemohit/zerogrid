@@ -197,7 +197,7 @@ private fun MessageFilterChipsRow(selected: String, onSelected: (String) -> Unit
 
 @Composable
 private fun ChannelsSection() {
-    Column(verticalAlignment = Alignment.CenterVertically, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -459,6 +459,9 @@ private fun DashboardBottomNavMessages() {
         }
     }
 }
+
+@Composable
+fun ZeroGridMessagesScreen() = MessagesScreen()
 
 @Preview(showBackground = true)
 @Composable

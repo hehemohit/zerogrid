@@ -347,6 +347,9 @@ private fun DashboardBottomNavSettingsActive() {
     }
 }
 
+@Composable
+fun ZeroGridSettingsScreen() = SettingsScreen()
+
 @Preview(showBackground = true)
 @Composable
 fun ZeroGridSettingsPreview() {

@@ -467,6 +467,9 @@ private fun DashboardBottomNavChatActive() {
     }
 }
 
+@Composable
+fun ZeroGridChatDetailScreen() = ChatDetailScreen()
+
 @Preview(showBackground = true)
 @Composable
 fun ZeroGridChatDetailPreview() {

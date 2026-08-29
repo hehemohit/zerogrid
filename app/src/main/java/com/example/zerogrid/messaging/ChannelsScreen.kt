@@ -417,6 +417,9 @@ private fun DashboardBottomNavMessagesActive() {
     }
 }
 
+@Composable
+fun ZeroGridChannelsScreen() = ChannelsScreen()
+
 @Preview(showBackground = true)
 @Composable
 fun ZeroGridChannelsPreview() {

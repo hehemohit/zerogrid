@@ -371,6 +371,9 @@ private fun DashboardBottomNav() {
     }
 }
 
+@Composable
+fun ZeroGridDashboardScreen() = MeshDashboardScreen()
+
 @Preview(showBackground = true)
 @Composable
 fun ZeroGridDashboardPreview() {

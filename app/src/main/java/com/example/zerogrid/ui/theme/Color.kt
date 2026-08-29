@@ -25,3 +25,9 @@ val AlertRedBorder = Color(0x4DFF5252)
 val SurfaceDarker = Color(0xFF151923)
 val BottomNavBg = Color(0xFF11151F)
 val DividerColor = Color(0xFF2A2F3D)
+
+// Additional colors requested
+val PrimaryCyanGlow = Color(0xFF00E5FF)
+val InputFieldBackground = Color(0xFF1E1E1E)
+val MeshLineColor = Color(0xFF333333)
+val DarkIndicator = Color(0xFF2C2C2C)

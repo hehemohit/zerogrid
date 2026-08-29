@@ -284,7 +284,7 @@ fun PermissionItemCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
-                TonalButton(
+                FilledTonalButton(
                     onClick = onAllowClick,
                     shape = RoundedCornerShape(8.dp)
                 ) {
@@ -331,6 +331,9 @@ fun ZeroGridStepper(currentStep: Int, totalSteps: Int) {
         )
     }
 }
+
+@Composable
+fun ZeroGridPermissionsScreen() = PermissionsScreen()
 
 @Preview(showBackground = true, device = "spec:width=411dp,height=891dp")
 @Composable

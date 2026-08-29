@@ -232,7 +232,7 @@ private fun TransferProgressHeaderCard() {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(24.dp),
-            horizontalAlignment = Alignment.CenterVertically
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Circular Progress Indicator Simulation
             Box(
@@ -421,7 +421,7 @@ private fun MeshRouteCard() {
                             .background(SurfaceDarker, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(imageVector = Icons.Outlined.Group, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.sp))
+                        Icon(imageVector = Icons.Outlined.Group, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(18.dp))
                     }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(text = "Rescue Team", color = TextSecondary, fontSize = 12.sp)
@@ -539,6 +539,9 @@ private fun ProtocolRow(label: String, value: String, valueColor: Color = TextPr
         Text(text = value, color = valueColor, fontSize = 13.sp, fontWeight = FontWeight.Medium, fontFamily = FontFamily.Monospace)
     }
 }
+
+@Composable
+fun ZeroGridFileTransferScreen() = FileTransferScreen()
 
 @Preview(showBackground = true)
 @Composable

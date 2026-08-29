@@ -468,6 +468,9 @@ private fun MenuNavigationItem(icon: ImageVector, title: String, titleColor: Col
     }
 }
 
+@Composable
+fun ZeroGridPeerDetailsScreen() = PeerDetailsScreen()
+
 @Preview(showBackground = true)
 @Composable
 fun ZeroGridPeerDetailsPreview() {

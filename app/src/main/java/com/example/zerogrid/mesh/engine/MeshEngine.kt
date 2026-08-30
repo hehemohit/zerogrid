@@ -81,7 +81,10 @@ class MeshEngine private constructor(context: Context) {
 
     fun stopMesh() {
         Log.d(TAG, "Stopping ZeroGrid Mesh Engine")
-        transports.forEach { it.stopDiscovery() }
+        transports.forEach { 
+            it.stopDiscovery()
+            routingEngine.unregisterTransport(it)
+        }
         _isMeshActive.value = false
     }
 

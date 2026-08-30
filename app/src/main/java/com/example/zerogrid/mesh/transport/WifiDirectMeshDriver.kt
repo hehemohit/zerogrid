@@ -77,9 +77,9 @@ class WifiDirectMeshDriver(
                 }
                 WifiP2pManager.WIFI_P2P_CONNECTION_CHANGED_ACTION -> {
                     @Suppress("DEPRECATION")
-                    val networkInfo = intent.getParcelableExtra<NetworkInfo>(WifiP2pManager.EXTRA_NETWORK_INFO)
-                    @Suppress("DEPRECATION")
-                    if (networkInfo?.isConnected == true) {
+                    val isConnected = intent.getParcelableExtra<NetworkInfo>(WifiP2pManager.EXTRA_NETWORK_INFO)?.isConnected == true
+                    
+                    if (isConnected) {
                         wifiP2pManager?.requestConnectionInfo(channel) { info ->
                             handleConnectionInfo(info)
                         }

@@ -36,6 +36,7 @@ import kotlinx.coroutines.sync.Mutex
 import java.nio.ByteBuffer
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Bluetooth Low Energy (BLE) Mesh Driver for ZeroGrid.
@@ -47,6 +48,7 @@ class BleMeshDriver(
 ) : MeshTransport {
 
     init {
+        // Use localNodeId to avoid "unused parameter" warning
         Log.d(TAG, "Initializing BleMeshDriver for $localNodeId")
     }
 
@@ -302,7 +304,7 @@ class BleMeshDriver(
             // Wait for connection and MTU
             var retries = 0
             while (activeGatts[address] == null && retries < 50) {
-                delay(100)
+                delay(100.milliseconds)
                 retries++
             }
             gatt = activeGatts[address] ?: return
@@ -459,8 +461,8 @@ class BleMeshDriver(
                 try {
                     val device = scanResult.device
                     val rssi = scanResult.rssi
-                    val deviceName = try { device.name } catch (e: SecurityException) { null } ?: "Peer"
-                    val deviceAddress = try { device.address } catch (e: SecurityException) { null } ?: "00:00:00:00:00:00"
+                    val deviceName = try { device.name } catch (_: SecurityException) { null } ?: "Peer"
+                    val deviceAddress = try { device.address } catch (_: SecurityException) { null } ?: "00:00:00:00:00:00"
 
                     discoveredDevices[deviceAddress] = device
 

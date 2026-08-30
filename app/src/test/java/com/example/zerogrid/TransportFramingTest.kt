@@ -127,48 +127,54 @@ class TransportFramingTest {
     }
 
     @Test
-    fun `test BLE fragmentation and reassembly`() {
+    fun `test BLE fragmentation and reassembly across different MTUs`() {
         val originalData = "This is a long message that needs to be fragmented into multiple BLE frames.".toByteArray()
-        val transmissionId = UUID.randomUUID()
-        val mtu = 30 // Small MTU for testing
-        val maxPayloadPerFrame = mtu - 3 - BleFrame.HEADER_SIZE // 3 is typical ATT overhead
         
-        // Check MTU sufficient for header
-        assertTrue("MTU too small for header", maxPayloadPerFrame > 0)
+        // Test with various MTU sizes: minimum required (25), typical (100), and large (512)
+        val mtus = listOf(25, 100, 512)
         
-        val frames = mutableListOf<ByteArray>()
-        var offset = 0
-        var sequence = 0
-        
-        while (offset < originalData.size) {
-            val chunkSize = minOf(maxPayloadPerFrame, originalData.size - offset)
-            val chunk = originalData.copyOfRange(offset, offset + chunkSize)
+        for (mtu in mtus) {
+            val transmissionId = UUID.randomUUID()
+            val maxPayloadPerFrame = mtu - 3 - BleFrame.HEADER_SIZE 
             
-            val flags: Byte = when {
-                (offset == 0 && offset + chunkSize == originalData.size) -> 0x00 // Single
-                (offset == 0) -> 0x01 // Start
-                (offset + chunkSize == originalData.size) -> 0x03 // End
-                else -> 0x02 // Middle
+            // Validate that we calculated a positive payload size for the given MTU
+            assertTrue("MTU $mtu is too small to carry framing header (Header: ${BleFrame.HEADER_SIZE})", 
+                maxPayloadPerFrame > 0)
+            
+            val frames = mutableListOf<ByteArray>()
+            var offset = 0
+            var sequence = 0
+            
+            while (offset < originalData.size) {
+                val chunkSize = minOf(maxPayloadPerFrame, originalData.size - offset)
+                val chunk = originalData.copyOfRange(offset, offset + chunkSize)
+                
+                val flags: Byte = when {
+                    (offset == 0 && offset + chunkSize == originalData.size) -> 0x00 // Single
+                    (offset == 0) -> 0x01 // Start
+                    (offset + chunkSize == originalData.size) -> 0x03 // End
+                    else -> 0x02 // Middle
+                }
+                
+                frames.add(BleFrame(transmissionId, sequence++, flags, chunk).toBytes())
+                offset += chunkSize
             }
             
-            frames.add(BleFrame(transmissionId, sequence++, flags, chunk).toBytes())
-            offset += chunkSize
-        }
-        
-        // Reassemble
-        val reassembly = mutableMapOf<Int, ByteArray>()
-        frames.forEach { bytes ->
-            val frame = BleFrame.fromBytes(bytes)
-            if (frame.transmissionId == transmissionId) {
-                reassembly[frame.sequence] = frame.payload
+            // Reassemble
+            val reassembly = mutableMapOf<Int, ByteArray>()
+            frames.forEach { bytes ->
+                val frame = BleFrame.fromBytes(bytes)
+                if (frame.transmissionId == transmissionId) {
+                    reassembly[frame.sequence] = frame.payload
+                }
             }
+            
+            val resultBuffer = ByteBuffer.allocate(originalData.size)
+            reassembly.keys.sorted().forEach { seq ->
+                reassembly[seq]?.let { resultBuffer.put(it) }
+            }
+            
+            assertArrayEquals("Failed for MTU $mtu", originalData, resultBuffer.array())
         }
-        
-        val result = ByteBuffer.allocate(originalData.size)
-        reassembly.keys.sorted().forEach { seq ->
-            reassembly[seq]?.let { result.put(it) }
-        }
-        
-        assertArrayEquals(originalData, result.array())
     }
 }

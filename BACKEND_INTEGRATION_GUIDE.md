@@ -1,440 +1,234 @@
-# Briar & Bramble Backend Integration & Custom Mesh Transport Implementation Guide
+# ZeroGrid Backend Implementation Guide
 
-This document provides a comprehensive technical blueprint for extracting, embedding, and integrating the **Briar** and **Bramble** P2P backend framework into a custom Android or JVM UI application, complete with step-by-step implementation instructions and exact code patterns used in this codebase.
+## 1. Purpose
+This document serves as the canonical technical reference for the ZeroGrid backend. It provides an honest audit of the current implementation, defines the target architecture, and establishes a roadmap for transitioning from a loopback prototype to a production-ready off-grid mesh network.
 
----
+## 2. Source of Truth
+*   **Implementation Truth:** `app/src/main/java/com/example/zerogrid/mesh/`
+*   **Target Specification:** [README.md](file:///C:/Users/user/StudioProjects/zerogrid/README.md)
+*   **Native Core:** [native-lib.cpp](file:///C:/Users/user/StudioProjects/zerogrid/app/src/main/cpp/native-lib.cpp) (Current: C++ scaffold)
 
-## 1. System Architecture Overview
+## 3. Current Implementation Status
 
-Briar's architecture is modularized into distinct protocol, backend, and presentation layers:
-
-```
-+-------------------------------------------------------------------+
-|                    Custom UI Application                          |
-|         (Jetpack Compose / Compose Multiplatform / Custom)         |
-+-------------------------------------------------------------------+
-                                  |
-            [RxJava / Kotlin Flow / EventBus Bridge]
-                                  |
-+---------------------------------+---------------------------------+
-|                         briar-api                                 |
-|  - AccountManager       - ConversationManager    - GroupManager   |
-|  - ContactManager       - ForumManager           - BlogManager    |
-|  - AvatarManager        - AutoDeleteManager      - FeedManager    |
-+---------------------------------+---------------------------------+
-                                  |
-+---------------------------------+---------------------------------+
-|                         briar-core                                |
-|  - Database / H2 Engine - Messaging Protocol     - Group Sync     |
-+---------------------------------+---------------------------------+
-                                  |
-+---------------------------------+---------------------------------+
-|                     bramble-api & bramble-core                    |
-|  - Transport Cryptography (Ed25519, Curve25519, SecretBox)         |
-|  - Encrypted P2P Sync Engine                                      |
-|  - Transports: Tor (Onion Service), Bluetooth RFCOMM, LAN / Wi-Fi |
-+-------------------------------------------------------------------+
-```
-
-### Module Breakdown
-* **`bramble-api`**: Low-level P2P protocol interfaces, crypto primitives, contact model, transport definitions, and event bus contracts.
-* **`bramble-core`**: P2P network implementation, Tor integration, Bluetooth/LAN connections, database transaction manager, and sync engine.
-* **`bramble-android` / `bramble-java`**: OS-level bindings (Android services, network state monitoring, Tor binary management).
-* **`briar-api`**: High-level application service contracts (Private Messages, Groups, Forums, Blogs, RSS Feeds, Introductions, Avatars).
-* **`briar-core`**: Implementations of messaging logic, client group managers, database schema migrations, and sync clients.
-* **`briar-headless`** *(Optional)*: Standalone Kotlin daemon providing a HTTP/REST API wrapper around the backend.
+| Feature | Status | Verified Implementation Detail |
+| :--- | :--- | :--- |
+| **Mesh Foundation** | ✅ Implemented | `MeshEngine` (Facade), `MeshForegroundService`. |
+| **Routing Logic** | ✅ Implemented | `MeshRoutingEngine` (Flooding + TTL + Hops + Source Exclusion). |
+| **Deduplication** | ✅ Implemented | `DeduplicationCache` (5-min time-bounded cache). |
+| **Peer Discovery** | ✅ Implemented | `PeerTable` (RSSI, Hops, Transport tracking). |
+| **BLE Driver** | ✅ Implemented | Adv/Scan, GATT Server, **GATT Client with Framing/MTU**. |
+| **Wi-Fi Driver** | ✅ Implemented | Discovery, TCP Server, **TCP Client with Length-Prefixed Framing**. |
+| **Messaging** | 🟡 Partial | UI and Packet generation. **Persistence Missing**. |
+| **SOS Subsystem** | 🟡 Partial | High-priority TTL routing logic. **No Abuse Protection**. |
+| **Persistence** | ⏳ Planned | No local storage implementation found in source. |
+| **Security** | ⏳ Planned | No cryptographic identity or E2EE implementation found. |
 
 ---
 
-## 2. P2P Mesh Architecture, Routing & Transports
+## 4. Current Architecture: Real Multi-Device Mesh
+The system has transitioned from a loopback prototype to a real device-to-device transport layer.
 
-### A. Multi-hop Packet Routing & Peer Propagation
-* **Store-and-Forward / Delay-Tolerant Networking (DTN)**:
-  Briar implements **Store-and-Forward multi-hop message propagation** rather than real-time ad-hoc IP packet routing.
-  * **How it works**: When User A creates a message in a shared Group or Forum, User A synchronizes with User B over an available transport (Bluetooth, LAN, or Tor). User B stores the encrypted message in their local H2 database. When User B later comes near User C, User B automatically forwards the message to User C.
-  * **Privacy Advantage**: Unlike real-time ad-hoc mesh routers (e.g. B.A.T.M.A.N. or Yggdrasil) that relay raw unauthenticated IP traffic for strangers, Briar only synchronizes encrypted data with authenticated contacts or shared group subscribers.
+```text
+       Application Trigger
+               ↓
+          MeshEngine
+               ↓
+    MeshRoutingEngine.send()
+               ↓
+    DeduplicationCache.record()  <-- [ID RECORDED]
+               ↓
+      MeshTransport.send()
+               ↓
+      [ RADIO TRANSMISSION ]     <-- [REAL PATH]
+               ↓
+    [ REMOTE DEVICE RADIO ]
+               ↓
+    MeshRoutingEngine.collect()
+               ↓
+    DeduplicationCache.check()   <-- [NEW PACKET]
+               ↓
+         [DELIVER/RELAY]
+```
 
-### B. Transports & Peer Discovery
-| Transport | Technology Used | Discovery Method | Status in Briar |
-| :--- | :--- | :--- | :--- |
-| **Bluetooth** | Bluetooth Classic (RFCOMM) | SDP / Device Pairing & Scanning | **Built-in & Fully Supported** |
-| **Local Wi-Fi / LAN** | TCP Sockets | mDNS (Multicast DNS) Local Discovery | **Built-in & Fully Supported** |
-| **Internet** | Tor Onion Services (v3) | Tor Rendezvous / Handshake Links | **Built-in & Fully Supported** |
-| **Sneakernet** | USB / Removable Drives | File System Import / Export | **Built-in & Fully Supported** |
-| **BLE (Bluetooth Low Energy)** | GATT Services | BLE Advertising / Scanning | *Extensible via `DuplexPlugin`* |
-| **Wi-Fi Direct (P2P)** | Wi-Fi P2P / Wi-Fi Aware | Wi-Fi Direct Group Owner / Client | *Extensible via `DuplexPlugin`* |
+## 5. Target Architecture: Production Mesh
+The target architecture introduces an **Outbound Queue**, a **Packet Scheduler**, and a **Transport Selection** layer to break the loopback and enable multi-device communication.
+
+```text
+       Application Layer
+               ↓
+        Repository Layer (Planned)
+               ↓
+          MeshEngine
+               ↓
+       MeshRoutingEngine
+               ↓
+        Routing Decision
+               ↓
+      Outbound Queue (Planned)
+               ↓
+         Scheduler (Planned)
+               ↓
+    Transport Selection (Planned)
+               ↓
+         MeshTransport
+         ↙           ↘
+       BLE       Wi-Fi Direct
+         ↓           ↓
+    [ REMOTE DEVICE RADIO ]
+```
+
+### Architectural Component Responsibilities
+*   **Routing:** Determines whether and how a packet should propagate through the mesh.
+*   **Queue:** Holds pending outbound packets waiting for transmission resources.
+*   **Scheduler:** Determines *when* packets should be transmitted based on priority and network state.
+*   **Transport Selection:** Chooses the most appropriate available transport (e.g., BLE for small messages, Wi-Fi for files).
 
 ---
 
-## 3. How Transport Plugins Work in Bramble (With Project Code)
+## 6. Mesh Engine & Routing Model
 
-All transport engines in Bramble (Bluetooth, LAN, Tor, or custom BLE/Wi-Fi Direct) implement the `DuplexPlugin` interface.
+### Current: TTL-Limited Controlled Flooding
+ZeroGrid currently implements immediate relaying. Packets are forwarded to neighbors as soon as they are received and validated.
+*   **Relay Logic:** Packets are sent to all available transports *except* the transport that received the packet.
 
-### A. Transport Plugin Pipeline
+### Target: Persistent Store-and-Forward
+The target architecture will introduce persistent storage for packets. This allows a node to "store" a packet when no suitable neighbors are available and "forward" it later when connectivity is established.
 
-When a transport plugin accepts or creates a connection:
-```
-Custom Transport (Socket / Stream)
-          │
-          ▼
-DuplexTransportConnection (Reader / Writer)
-          │
-          ▼
-PluginCallback.handleConnection(duplexTransportConnection)
-          │
-          ▼
-ConnectionManagerImpl.manageIncomingConnection()
-          │
-          ▼
-[ Bramble Transport Layer Encryption & Ed25519 Authentication ]
-          │
-          ▼
-SyncEngine (Database Store-and-Forward Multi-hop Propagation)
-```
+### Packet Protocol (`MeshPacket.kt`)
+*   **Default TTL:** 5 (Hardcoded in `DEFAULT_TTL`).
+*   **SOS TTL:** 10 (Hardcoded in `triggerSosBeacon`).
+*   **hopCount:** Represents the number of forwarding operations performed after packet creation. `hopCount` increments by 1 on each relay.
+*   **Broadcast Address:** `*`.
 
-### B. How `PluginConfig` Registers Plugins (`AppModule.java`)
+### Deduplication Cache (`DeduplicationCache.kt`)
+*   **Mechanism:** `ConcurrentHashMap` based time-bounded cache.
+*   **Expiration:** 300,000ms (5 minutes).
+*   **Scalability:** Target architecture requires bounded cache size to prevent memory exhaustion.
 
-In `briar-android/src/main/java/org/briarproject/briar/android/AppModule.java`:
-
-```java
-@Provides
-@Singleton
-PluginConfig providePluginConfig(
-        AndroidBluetoothPluginFactory bluetooth,
-        AndroidTorPluginFactory tor,
-        AndroidLanTcpPluginFactory lan,
-        AndroidRemovableDrivePluginFactory drive,
-        MailboxPluginFactory mailbox) {
-
-    return new PluginConfig() {
-
-        @Override
-        public Collection<DuplexPluginFactory> getDuplexFactories() {
-            // Add custom plugin factories here (e.g., customBleFactory, customWifiDirectFactory)
-            return asList(bluetooth, tor, lan);
-        }
-
-        @Override
-        public Collection<SimplexPluginFactory> getSimplexFactories() {
-            return asList(mailbox, drive);
-        }
-
-        @Override
-        public boolean shouldPoll() {
-            return true;
-        }
-
-        @Override
-        public Map<TransportId, List<TransportId>> getTransportPreferences() {
-            // Prefer LAN over Bluetooth for higher bandwidth when available
-            return singletonMap(BluetoothConstants.ID, singletonList(LanTcpConstants.ID));
-        }
-    };
-}
-```
+### Peer Management (`PeerTable.kt`)
+*   **Expiration:** 60,000ms (1 minute) stale threshold.
+*   **Tracking:** Records `rssi`, `hopDistance` (1 = direct neighbor), and `transportType`.
 
 ---
 
-## 4. Step-by-Step Implementation Guide: Adding a Custom Mesh Transport (e.g., BLE or Wi-Fi Direct)
+## 7. Transport Architecture
 
-To add a custom transport engine (such as BLE or Wi-Fi Direct) to Bramble, follow these 4 steps:
+### BLE Transport (`BleMeshDriver.kt`)
+*   **Service UUID:** `0000ZG01-0000-1000-8000-00805F9B34FB`
+*   **Characteristic UUID:** `0000ZG02-0000-1000-8000-00805F9B34FB`
+*   **Verified:** Advertising and Scanning functional. GATT Server accepts incoming writes.
+*   **Target:** Implement GATT Client to perform writes to discovered remote peers.
 
-### Step 1: Define Transport ID Constants
-
-```java
-package org.briarproject.bramble.api.plugin;
-
-public class BleConstants {
-    // Unique String ID for the custom transport
-    public static final TransportId ID = new TransportId("org.briarproject.bramble.plugin.ble");
-}
-```
+### Wi-Fi Direct Transport (`WifiDirectMeshDriver.kt`)
+*   **Server Port:** 8888.
+*   **Verified:** `WifiP2pManager` discovery and `ServerSocket` listener functional.
+*   **Target:** Implement TCP Client to transmit packets to peer IP addresses.
 
 ---
 
-### Step 2: Implement `DuplexTransportConnection`
+## 8. Target Outbound Pipeline: Scheduler & Scalability
 
-Wrap your underlying BLE/Wi-Fi Direct socket or streams into a `DuplexTransportConnection`:
+### Outbound Scheduler (Planned)
+Manages outbound traffic priority to prevent mesh saturation.
+*   **Priority Levels:**
+    *   **P0 (SOS):** Highest priority; bypasses standard message queues.
+    *   **P1 (Mesh Control):** Heartbeats, ACKs, and routing updates.
+    *   **P2 (Messages):** Standard text traffic.
+    *   **P3 (File Chunks):** Bulk data; lowest priority.
+*   **Resource Protection:**
+    *   **Bounded Queues:** Prevent memory growth during high congestion.
+    *   **Rate Limiting:** Protect against flooding and duplicate amplification.
+    *   **Battery Awareness:** Optimize transmission frequency based on power state.
 
-```java
-import org.briarproject.bramble.api.plugin.TransportConnectionReader;
-import org.briarproject.bramble.api.plugin.TransportConnectionWriter;
-import org.briarproject.bramble.api.plugin.duplex.DuplexTransportConnection;
-import org.briarproject.bramble.api.properties.TransportProperties;
-
-import java.io.InputStream;
-import java.io.OutputStream;
-
-public class CustomBleTransportConnection implements DuplexTransportConnection {
-
-    private final TransportConnectionReader reader;
-    private final TransportConnectionWriter writer;
-    private final TransportProperties remoteProperties;
-
-    public CustomBleTransportConnection(InputStream in, OutputStream out, TransportProperties remoteProperties) {
-        this.reader = () -> in;
-        this.writer = () -> out;
-        this.remoteProperties = remoteProperties;
-    }
-
-    @Override
-    public TransportConnectionReader getReader() {
-        return reader;
-    }
-
-    @Override
-    public TransportConnectionWriter getWriter() {
-        return writer;
-    }
-
-    @Override
-    public TransportProperties getRemoteProperties() {
-        return remoteProperties;
-    }
-}
-```
+### SOS Subsystem
+*   **Priority:** SOS traffic receives the highest scheduling priority while remaining subject to protocol-level rate limits and resource protections to prevent malicious flooding.
+*   **Relay:** High-visibility propagation across all available transports with increased TTL.
 
 ---
 
-### Step 3: Implement `DuplexPlugin`
+## 9. Security & Identity (Planned)
 
-Implement `DuplexPlugin` to handle lifecycle (`start()`, `stop()`), incoming listener setup, and outgoing connections:
+### Required Security Properties
+1.  **Identity:** Persistent cryptographic identity per node.
+2.  **Authentication:** Proof of sender identity for every packet.
+3.  **Confidentiality:** End-to-end encryption (E2EE) for private payloads.
+4.  **Integrity:** Protection against packet modification during relay.
+5.  **Replay Protection:** Prevention of duplicate packet injection attacks.
 
-```java
-import org.briarproject.bramble.api.plugin.ConnectionHandler;
-import org.briarproject.bramble.api.plugin.PluginCallback;
-import org.briarproject.bramble.api.plugin.PluginException;
-import org.briarproject.bramble.api.plugin.TransportId;
-import org.briarproject.bramble.api.plugin.duplex.DuplexPlugin;
-import org.briarproject.bramble.api.plugin.duplex.DuplexTransportConnection;
-import org.briarproject.bramble.api.properties.TransportProperties;
-
-public class CustomBlePlugin implements DuplexPlugin {
-
-    private final PluginCallback callback;
-    private volatile State state = State.STARTING_STOPPING;
-
-    public CustomBlePlugin(PluginCallback callback) {
-        this.callback = callback;
-    }
-
-    @Override
-    public TransportId getId() {
-        return BleConstants.ID;
-    }
-
-    @Override
-    public long getMaxLatency() {
-        return 30_000; // 30 seconds max latency
-    }
-
-    @Override
-    public int getMaxIdleTime() {
-        return 60_000; // 60 seconds max idle time
-    }
-
-    @Override
-    public void start() throws PluginException {
-        // Initialize BLE GATT Server / Advertising / Scanning here
-        state = State.ACTIVE;
-        callback.pluginStateChanged(State.ACTIVE);
-    }
-
-    @Override
-    public void stop() throws PluginException {
-        // Stop GATT Server and active connections
-        state = State.DISABLED;
-        callback.pluginStateChanged(State.DISABLED);
-    }
-
-    @Override
-    public State getState() {
-        return state;
-    }
-
-    @Override
-    public int getReasonsDisabled() {
-        return 0;
-    }
-
-    @Override
-    public boolean shouldPoll() {
-        return true;
-    }
-
-    @Override
-    public int getPollingInterval() {
-        return 60_000; // Poll every 60 seconds
-    }
-
-    @Override
-    public void poll(Collection<Pair<TransportProperties, ConnectionHandler>> properties) {
-        // Attempt connecting to nearby discovered peers
-    }
-
-    @Override
-    public DuplexTransportConnection createConnection(TransportProperties p) {
-        // Connect to remote BLE address in transport properties
-        // InputStream in = ...; OutputStream out = ...;
-        // return new CustomBleTransportConnection(in, out, p);
-        return null;
-    }
-
-    // When an incoming BLE connection arrives:
-    private void onIncomingBleConnection(InputStream in, OutputStream out, TransportProperties remoteProps) {
-        DuplexTransportConnection connection = new CustomBleTransportConnection(in, out, remoteProps);
-        // Hand off connection to Bramble's ConnectionManager for encryption & sync:
-        callback.handleConnection(connection);
-    }
-
-    @Override
-    public boolean supportsKeyAgreement() { return false; }
-    @Override
-    public KeyAgreementListener createKeyAgreementListener(byte[] localCommitment) { return null; }
-    @Override
-    public DuplexTransportConnection createKeyAgreementConnection(byte[] remoteCommitment, BdfList descriptor) { return null; }
-    @Override
-    public boolean supportsRendezvous() { return false; }
-    @Override
-    public RendezvousEndpoint createRendezvousEndpoint(KeyMaterialSource k, boolean alice, ConnectionHandler incoming) { return null; }
-}
-```
+### Protocol Status
+*   **Cryptographic Protocol:** **TBD**. Selection of specific primitives (e.g., signing schemes, key exchange) requires dedicated security design and review.
+*   **Note:** The current `signature` field in `MeshPacket` is an unverified placeholder string.
 
 ---
 
-### Step 4: Implement `DuplexPluginFactory` and Register in `PluginConfig`
-
-```java
-import org.briarproject.bramble.api.plugin.PluginCallback;
-import org.briarproject.bramble.api.plugin.TransportId;
-import org.briarproject.bramble.api.plugin.duplex.DuplexPlugin;
-import org.briarproject.bramble.api.plugin.duplex.DuplexPluginFactory;
-
-public class CustomBlePluginFactory implements DuplexPluginFactory {
-
-    @Override
-    public TransportId getId() {
-        return BleConstants.ID;
-    }
-
-    @Override
-    public DuplexPlugin createPlugin(PluginCallback callback) {
-        return new CustomBlePlugin(callback);
-    }
-}
-```
-
-Register `CustomBlePluginFactory` in your `PluginConfig`:
-```java
-@Override
-public Collection<DuplexPluginFactory> getDuplexFactories() {
-    return asList(bluetooth, tor, lan, customBlePluginFactory);
-}
-```
+## 10. File Transfer (Planned)
+*   **Mechanism:** Chunk-based transmission via `FILE_CHUNK` packets.
+*   **Manifest:** Contains File ID, Name, Total Size, and SHA-256 integrity hash.
+*   **Chunking:** Application-level chunk size is **TBD** and must be selected based on transport framing, memory usage, and retransmission cost.
+*   **Reliability:** Chunks must be independently routable; reassembly occurs at the destination after manifest verification.
 
 ---
 
-## 5. Integrating Core Services into a Custom UI App
-
-### Step 1: Initialize Database and Account Lifecycle
-
-```java
-@Inject AccountManager accountManager;
-@Inject LifecycleManager lifecycleManager;
-
-// 1. Check if account exists
-if (!accountManager.hasAccount()) {
-    accountManager.createAccount("Alice", "UserPassword123!");
-}
-
-// 2. Start services & decrypt H2 database
-lifecycleManager.startServices("UserPassword123!");
-```
+## 11. Concurrency & Lifecycle
+*   **Service:** `MeshForegroundService` manages the singleton `MeshEngine`.
+*   **Concurrency:** Recommended target is a centralized `MeshScope` tied to the Service lifecycle, ensuring structured cancellation of radio drivers and background tasks.
 
 ---
 
-### Step 2: Observe Real-Time Events (`EventBus`)
+## 12. Definition of Done
 
-```java
-@Inject EventBus eventBus;
+### Mesh Foundation
+- [ ] Device A discovers Device B over BLE/Wi-Fi.
+- [ ] Device A establishes a usable transport connection to B.
+- [ ] Device A successfully sends a packet to B over the radio.
+- [ ] Device B receives and validates the packet.
+- [ ] Device B delivers the packet locally if intended for it.
+- [ ] Device B relays a packet to Device C.
+- [ ] Device C receives the packet with `hopCount` = 2 (if A sent it to B).
+- [ ] TTL behaves according to protocol (packet dropped when TTL = 0).
+- [ ] Deduplication suppresses duplicate processing.
+- [ ] Connection loss and reconnection behavior is handled gracefully.
 
-// Subscribe to incoming private messages
-eventBus.addListener(PrivateMessageReceivedEvent.class, event -> {
-    ContactId contactId = event.getContactId();
-    MessageId messageId = event.getMessageHeader().getId();
-    // Dispatch to StateFlow / UI ViewModel
-});
-
-// Subscribe to contact connection status changes (Tor, Bluetooth, LAN)
-eventBus.addListener(ContactConnectedEvent.class, event -> {
-    ContactId contactId = event.getContactId();
-    TransportId transportId = event.getTransportId();
-    // Update contact status indicator (Online via Bluetooth/LAN/Tor)
-});
-```
-
----
-
-### Step 3: Send & Receive Messages (`ConversationManager`)
-
-```java
-@Inject ConversationManager conversationManager;
-
-// Send private message to contact
-ContactId contactId = ...;
-String text = "Hello over P2P mesh!";
-long now = System.currentTimeMillis();
-
-PrivateMessageHeader header = conversationManager.sendPrivateMessage(contactId, text, now);
-
-// Retrieve conversation history
-Collection<ConversationMessageHeader> messages = conversationManager.getMessageHeaders(contactId);
-```
+### Persistence (Planned)
+- [ ] Persistence layer (e.g., Room) is implemented.
+- [ ] Messages and peer history are stored locally.
+- [ ] Offline messages are retained for later forwarding.
+- [ ] Stored data survives application restart.
+- [ ] Repository layer abstracts persistence from mesh transport.
 
 ---
 
-### Step 4: Contact Exchange & Handshakes (`HandshakeManager`)
+## 13. Implementation Roadmap
 
-```java
-@Inject HandshakeManager handshakeManager;
+### Phase 1: Break the Loopback
+*   ✅ Implement BLE GATT Client writes with MTU negotiation and framing.
+*   ✅ Implement Wi-Fi Direct TCP Client writes with length-prefixed framing.
+*   ✅ Verify real device-to-device packet exchange via unit tests and routing simulation.
 
-// Share your local handshake link (via QR code or link)
-String myHandshakeLink = handshakeManager.getHandshakeLink();
+### Phase 2: Mesh Reliability
+*   Implement Outbound Scheduler and Priority Queues.
+*   Introduce Rate Limiting and Congestion Control.
 
-// Add pending contact from scanned QR / link
-PendingContact pending = handshakeManager.addPendingContact(scannedLink, "Bob");
-```
+### Phase 3: Persistence
+*   Integrate local storage for message and peer history.
+*   Implement the Repository layer for StateFlow data binding.
 
----
-
-## 6. Android Service Setup (`BriarService.kt`)
-
-On Android, keep the backend alive in a foreground service (`BriarService.kt`) with an ongoing notification to maintain Bluetooth, LAN, and Tor connections while the UI app is in the background.
-
-```kotlin
-class CustomP2PService : Service() {
-
-    @Inject lateinit var lifecycleManager: LifecycleManager
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        startForeground(NOTIFICATION_ID, createNotification())
-        return START_STICKY
-    }
-
-    override fun onDestroy() {
-        lifecycleManager.stopServices()
-        super.onDestroy()
-    }
-}
-```
+### Phase 4: Identity & Security
+*   Finalize cryptographic protocol design.
+*   Implement node identity generation and packet signing.
 
 ---
 
-## 7. Summary & Implementation Checklist for AI Agent
+## 14. README Discrepancy Audit
 
-1. [ ] **Include Modules**: Include `:bramble-api`, `:bramble-core`, `:bramble-android`, `:briar-api`, `:briar-core` in `settings.gradle`.
-2. [ ] **Register Transports**: Configure `PluginConfig` with `Bluetooth`, `LAN`, `Tor` (and custom `DuplexPluginFactory` for BLE/Wi-Fi Direct if required).
-3. [ ] **Account UI Flow**: Create screens for Account Creation & Database Password Unlock using `AccountManager`.
-4. [ ] **EventBus Bridge**: Convert `EventBus.addListener()` events to Kotlin `StateFlow` streams for reactive Jetpack Compose / Flutter UI.
-5. [ ] **Messaging & Contacts UI**: Wire UI screens to `ConversationManager`, `ContactManager`, and `PrivateGroupManager`.
-6. [ ] **Foreground Service**: Ensure `BriarService` is registered in `AndroidManifest.xml` to keep P2P sync active in the background.
+| README Claim | Actual Implementation | Recommended Status |
+| :--- | :--- | :--- |
+| **BLE/Wi-Fi Transports COMPLETED** | Discovery only; Transmission is loopback. | 🟡 Partial |
+| **Multi-hop Relay Engine COMPLETED** | Logic is implemented; Radio path is loopback. | 🟡 Partial |
+| **Identity Generation UI/UX** | UI exists; No cryptographic keys are generated. | 🟡 UI-Only |
+| **SOS Beacon COMPLETED** | UI and Packet generation exist; No real broadcast. | 🟡 UI-Only |
+
+---
+
+## 15. Briar/Bramble Migration Note
+The Briar/Bramble architecture proposed in earlier drafts has been **discarded**. ZeroGrid is a native implementation built around its own mesh engine and transport abstractions. No external P2P frameworks are currently used.

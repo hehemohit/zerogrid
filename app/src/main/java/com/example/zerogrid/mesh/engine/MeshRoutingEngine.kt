@@ -15,7 +15,7 @@ import kotlinx.coroutines.launch
  */
 class MeshRoutingEngine(
     private val localNodeId: String,
-    private val deduplicationCache: DeduplicationCache = DeduplicationCache()
+    private val deduplicationCache: DeduplicationCache = DeduplicationCache(),
 ) {
     companion object {
         private const val TAG = "MeshRoutingEngine"
@@ -46,13 +46,14 @@ class MeshRoutingEngine(
     fun processInboundPacket(packet: MeshPacket, sourceTransport: MeshTransport? = null) {
         // 1. Deduplication Check
         if (deduplicationCache.isDuplicateAndRecord(packet.packetId)) {
-            Log.d(TAG, "Dropped duplicate packet: ${packet.packetId}")
+            Log.d(TAG, "Dropped duplicate or locally-originated packet: ${packet.packetId}")
             return
         }
 
+        val sourceName = sourceTransport?.transportName ?: "Local"
         Log.d(
             TAG,
-            "Processing packet ${packet.packetId} from ${packet.senderId} (TTL=${packet.ttl}, Hops=${packet.hopCount})"
+            "Processing packet ${packet.packetId} from ${packet.senderId} via $sourceName (TTL=${packet.ttl}, Hops=${packet.hopCount})"
         )
 
         // 2. Check local delivery
@@ -60,26 +61,26 @@ class MeshRoutingEngine(
         val isBroadcast = packet.recipientId == MeshPacket.BROADCAST_ADDRESS
 
         if (isTargetedToMe || isBroadcast) {
+            Log.d(TAG, "Packet ${packet.packetId} delivered locally")
             scope.launch {
                 _incomingPackets.emit(packet)
             }
         }
 
         // 3. Multi-Hop Forwarding & Relay
-        val shouldForward = ((isBroadcast || !isTargetedToMe) && packet.ttl > 1)
+        val shouldForward = (isBroadcast || !isTargetedToMe) && (packet.ttl > 1)
         if (shouldForward) {
             val relayedPacket = packet.copy(
                 ttl = packet.ttl - 1,
                 hopCount = packet.hopCount + 1
             )
 
-            Log.d(
-                TAG,
-                "Relaying packet ${relayedPacket.packetId} to neighbor nodes (Remaining TTL=${relayedPacket.ttl})"
-            )
-
             activeTransports.forEach { transport ->
                 if (transport != sourceTransport && transport.isRunning) {
+                    Log.d(
+                        TAG,
+                        "Relaying packet ${relayedPacket.packetId} to neighbor via ${transport.transportName} (Remaining TTL=${relayedPacket.ttl})"
+                    )
                     transport.sendPacket(relayedPacket)
                 }
             }
@@ -87,12 +88,15 @@ class MeshRoutingEngine(
     }
 
     fun sendOutboundPacket(packet: MeshPacket): Boolean {
-        // Record local packet in deduplication cache
+        // Record local packet in deduplication cache to prevent re-processing if it returns
         deduplicationCache.isDuplicateAndRecord(packet.packetId)
 
+        Log.d(TAG, "Sending outbound packet ${packet.packetId} (Type: ${packet.type})")
+        
         var sentCount = 0
         activeTransports.forEach { transport ->
             if (transport.isRunning) {
+                Log.d(TAG, "Attempting transmission via ${transport.transportName}")
                 if (transport.sendPacket(packet)) {
                     sentCount++
                 }

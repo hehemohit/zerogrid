@@ -1,4 +1,6 @@
-package com.example.zerogrid
+package com.example.zerogrid.onboarding
+
+import com.example.zerogrid.navigation.*
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -28,7 +30,7 @@ import androidx.compose.ui.unit.sp
 import com.example.zerogrid.ui.theme.*
 
 @Composable
-fun OnBoardingScreen() {
+fun OnBoardingScreen(onNavigate: (Screen) -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -132,7 +134,7 @@ fun OnBoardingScreen() {
 
         // Bottom Actions
         Button(
-            onClick = { /* Handle Continue */ },
+            onClick = { onNavigate(Screen.PERMISSIONS) },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
@@ -235,7 +237,7 @@ fun MeshGraphicCanvas() {
             val rectSize = Size(40f, 70f)
             drawRoundRect(
                 color = PrimaryCyan,
-                topLeft = Offset(node.x - rectSize.width/2, node.y - rectSize.height/2),
+                topLeft = Offset(node.x - (rectSize.width / 2), node.y - (rectSize.height / 2)),
                 size = rectSize,
                 cornerRadius = CornerRadius(8f, 8f),
                 style = Stroke(width = 3f)

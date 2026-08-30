@@ -46,6 +46,10 @@ android {
         compose = true
     }
 
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+
     externalNativeBuild {
         cmake {
             path = file("src/main/cpp/CMakeLists.txt")

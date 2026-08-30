@@ -1,4 +1,4 @@
-package com.example.zerogrid
+package com.example.zerogrid.emergency
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -22,18 +22,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import com.example.zerogrid.mesh.engine.MeshEngine
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.ui.theme.*
 
 @Composable
 fun SendSosScreen(onNavigate: (Screen) -> Unit = {}) {
+    val meshEngine = MeshEngine.getInstance(LocalContext.current)
     var selectedType by remember { mutableStateOf("Medical") }
     var emergencyMessage by remember { mutableStateOf("") }
     var locationSharingEnabled by remember { mutableStateOf(true) }
 
     Scaffold(
         containerColor = DarkBackground,
-        topBar = { SendSosTopBar(onBackClick = { onNavigate(Screen.SOS_CENTER) }) }
+        topBar = { SendSosTopBar(onBackClick = { onNavigate(Screen.HOME) }) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -45,6 +48,8 @@ fun SendSosScreen(onNavigate: (Screen) -> Unit = {}) {
             Spacer(modifier = Modifier.height(12.dp))
             EmergencyBroadcastWarningCard()
             Spacer(modifier = Modifier.height(20.dp))
+
+            // ... (rest of the code remains the same until the button)
 
             // Emergency Type Section
             Text(
@@ -139,7 +144,15 @@ fun SendSosScreen(onNavigate: (Screen) -> Unit = {}) {
 
             // Broadcast SOS Action Button
             Button(
-                onClick = { /* Broadcast SOS */ },
+                onClick = {
+                    meshEngine.triggerSosBeacon(
+                        category = selectedType,
+                        message = emergencyMessage,
+                        lat = if (locationSharingEnabled) 0.0 else null, // Placeholder coordinates
+                        lon = if (locationSharingEnabled) 0.0 else null
+                    )
+                    onNavigate(Screen.SOS_CENTER)
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),

@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 # ZeroGrid 🌐
 
 > **Decentralized, Off-Grid Peer-to-Peer Mesh Communication & Emergency Network for Android**
@@ -12,23 +11,22 @@ ZeroGrid is a decentralized off-grid mesh communication application that enables
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │ UI / Frontend Layer (Jetpack Compose Material 3)    [ ✔ COMPLETED ]    │
-│ Navigation & Screen Routing                         [ ✔ COMPLETED ]    │
-│ Design System & Dark Theming                        [ ✔ COMPLETED ]    │
+│ Navigation & Screen Routing (18 Screens)           [ ✔ COMPLETED ]    │
+│ Design System & Cybernetic Dark Palette             [ ✔ COMPLETED ]    │
 │ C++ JNI Scaffold (CMake / NDK)                      [ ✔ CONFIGURED ]   │
+│ BLE & Wi-Fi Direct Mesh Transports                 [ ✔ COMPLETED ]    │
+│ Multi-hop Store-and-Forward Relay Engine            [ ✔ COMPLETED ]    │
+│ Dynamic Peer Discovery & Routing Table              [ ✔ COMPLETED ]    │
+│ Foreground Service Daemon (Mesh Background Node)    [ ✔ COMPLETED ]    │
 │ ────────────────────────────────────────────────────────────────────── │
-│ BLE / Wi-Fi Direct Mesh Networking Engine           [ ⏳ PENDING ]     │
-│ Multi-hop Packet Routing & Peer Discovery           [ ⏳ PENDING ]     │
-│ End-to-End Encryption (E2EE) & Key Exchange         [ ⏳ PENDING ]     │
+│ End-to-End Cryptography (Noise / Signal Ratchet)    [ ⏳ PENDING ]     │
 │ Local Database (Room / SQLCipher) & Storage         [ ⏳ PENDING ]     │
-│ Foreground Service (Mesh Node Background Daemon)    [ ⏳ PENDING ]     │
-│ ViewModel & Repository Data Binding                 [ ⏳ PENDING ]     │
+│ ViewModel & Repository State Data Binding           [ ⏳ PENDING ]     │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
 > [!NOTE]
-> **To the Backend / Systems Engineer:**
-> All UI screens, layout states, mock interactions, and navigation structures are **fully designed and implemented** in Jetpack Compose.
-> Your primary objective is to build the networking core (Wi-Fi Direct / BLE / multi-hop routing), local persistence, cryptographic layer, Android runtime permissions/services, and bind them to the existing UI composables via ViewModels.
+> All 18 UI screens, navigation graph, BLE & Wi-Fi Direct transport drivers, multi-hop routing engine, and foreground service daemon are **fully implemented and verified**.
 
 ---
 
@@ -42,155 +40,132 @@ ZeroGrid is a decentralized off-grid mesh communication application that enables
 
 ---
 
-## 🎨 Completed Frontend Modules (What's in the Box)
+## 🎨 Frontend & UI Modules
 
 All user interface screens are organized by feature domain under `app/src/main/java/com/example/zerogrid/`:
 
 ### 1. 🏠 Home & Dashboard (`home/`)
-- [`MeshDashboardScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/home/MeshDashboardScreen.kt)
-  - Active node identity header (Node ID, Signal strength, Battery level).
-  - Real-time mesh connection status card (hop count, routing mode, active peers count).
-  - Quick action shortcuts (Send Message, Share File, Channels, SOS Beacon).
+- [`MeshDashboardScreen.kt`](app/src/main/java/com/example/zerogrid/home/MeshDashboardScreen.kt)
+  - Active node identity header (Node ID, Signal strength, Mesh status).
+  - Real-time mesh connection status card (hop count, routing mode, active peers count, tap for Network Status).
+  - Quick action shortcuts (Messages, Mesh Network, Files, SOS Beacon).
   - Nearby discovered peers list with signal dBm, hop distance, and device roles.
   - Floating SOS emergency broadcast FAB.
 
 ### 2. 💬 Messaging & Channels (`messaging/`)
-- [`MessagesScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/messaging/MessagesScreen.kt)
+- [`MessagesScreen.kt`](app/src/main/java/com/example/zerogrid/messaging/MessagesScreen.kt)
   - Direct 1-on-1 conversations list with unread badges, timestamp, encryption status, and last seen metrics.
-  - Search bar and floating action button to initiate new direct peer conversations.
-- [`ChannelsScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/messaging/ChannelsScreen.kt)
-  - Public and localized mesh broadcast channels list (e.g., `#general`, `#emergency`, `#camp-alpha`).
-  - Channel subscription status, active members counter, and channel creation modal/flow.
-- [`ChannelChatScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/messaging/ChannelChatScreen.kt)
+  - Quick access to channels and direct peer chat navigation.
+- [`ChannelsScreen.kt`](app/src/main/java/com/example/zerogrid/messaging/ChannelsScreen.kt)
+  - Public, private, and localized mesh broadcast channels list (`#general`, `#emergency`, `#camp-alpha`).
+  - Active member counters and channel subscription status.
+- [`ChannelChatScreen.kt`](app/src/main/java/com/example/zerogrid/messaging/ChannelChatScreen.kt)
   - Real-time chat timeline with incoming/outgoing message bubbles.
   - Message delivery status indicators (Sent, Relayed via X Hops, Delivered, Read).
-  - Attachment preview, voice memo placeholders, and mesh packet relay info.
 
 ### 3. 📡 Mesh Management & Discovery (`mesh/`)
-- [`NearbyDevicesScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/mesh/NearbyDevicesScreen.kt)
-  - BLE & Wi-Fi Direct peer radar/scanner list.
-  - Signal strength indicators (RSSI dBm), transport type (BLE/Wi-Fi Direct), and connection state.
-  - Manual connection trigger and discovery refresh.
-- [`PeerDetailsScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/mesh/PeerDetailsScreen.kt)
-  - Detailed peer telemetry (Public Key fingerprint, MAC/Bluetooth address, Ping/RTT latency, Relay status).
-  - Actions: Direct Message, Send File, Block/Trust Peer, Ping Route.
-- [`NetworkStatusScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/mesh/NetworkStatusScreen.kt)
-  - Mesh topology statistics: Active nodes, direct neighbors, relay hops, packets forwarded, bandwidth throughput.
+- [`NearbyDevicesScreen.kt`](app/src/main/java/com/example/zerogrid/mesh/NearbyDevicesScreen.kt)
+  - BLE & Wi-Fi Direct peer radar/scanner list with RSSI dBm and transport type.
+  - Manual connection triggers and peer detail view navigation.
+- [`PeerDetailsScreen.kt`](app/src/main/java/com/example/zerogrid/mesh/PeerDetailsScreen.kt)
+  - Detailed peer telemetry (Public Key fingerprint, MAC address, RTT latency, Relay status).
+  - Actions: Direct Message, Send File, Block/Trust Peer.
+- [`NetworkStatusScreen.kt`](app/src/main/java/com/example/zerogrid/mesh/NetworkStatusScreen.kt)
+  - Mesh topology statistics: Active nodes, direct neighbors, relay hops, packets relayed, and throughput.
 
 ### 4. 📁 File Sharing & Transfer (`files/`)
-- [`FilesScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/files/FilesScreen.kt)
-  - Offline file explorer showing received and shared media, documents, and APK packages.
-  - Storage usage breakdown and filter tabs (All, Images, Documents, Media).
-- [`SendFileScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/files/SendFileScreen.kt)
+- [`FilesScreen.kt`](app/src/main/java/com/example/zerogrid/files/FilesScreen.kt)
+  - Offline file explorer showing received/shared media, documents, and APK packages.
+- [`SendFileScreen.kt`](app/src/main/java/com/example/zerogrid/files/SendFileScreen.kt)
   - File picker interface, recipient selection (direct peer vs. multi-hop broadcast), and transfer compression options.
-- [`FileTransferScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/files/FileTransferScreen.kt)
+- [`FileTransferScreen.kt`](app/src/main/java/com/example/zerogrid/files/FileTransferScreen.kt)
   - Live transfer progress bar with chunk transfer rate (KB/s), estimated time remaining, SHA-256 chunk validation status, and pause/cancel controls.
 
 ### 5. 🚨 Emergency & SOS Beacon (`emergency/`)
-- [`SosCenterScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/emergency/SosCenterScreen.kt)
-  - High-visibility emergency control room.
-  - Active incoming emergency alerts received over the mesh with GPS coordinates, sender ID, timestamp, and distance estimate.
+- [`SosCenterScreen.kt`](app/src/main/java/com/example/zerogrid/emergency/SosCenterScreen.kt)
+  - High-visibility emergency control room with active emergency alerts received over the mesh.
   - Quick emergency guides (Medical, Disaster, Rescue).
-- [`SendSosScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/emergency/SendSosScreen.kt)
-  - Emergency beacon trigger with countdown cancel shield to prevent accidental triggers.
-  - Incident category selector (Medical, Natural Disaster, Lost/Trapped, Security Threat).
+- [`SendSosScreen.kt`](app/src/main/java/com/example/zerogrid/emergency/SendSosScreen.kt)
+  - Emergency beacon trigger with incident category selector (Medical, Disaster, Trapped, Security).
   - Custom emergency message and GPS location attachment toggle.
 
 ### 6. 🚀 Onboarding & Identity (`onboarding/`)
-- [`SplashScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/onboarding/SplashScreen.kt): Animated brand entrance.
-- [`OnboardingScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/onboarding/OnboardingScreen.kt): Feature walkthrough explaining off-grid mesh concepts.
-- [`PermissionsScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/onboarding/PermissionsScreen.kt): UI requesting Bluetooth, Nearby Devices, Location, and Wi-Fi permissions.
-- [`CreateIdentityScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/onboarding/CreateIdentityScreen.kt): Cryptographic node pseudonym, avatar generator, and public/private key generation prompt.
+- [`SplashScreen.kt`](app/src/main/java/com/example/zerogrid/onboarding/SplashScreen.kt): Animated cybernetic entrance logo.
+- [`OnboardingScreen.kt`](app/src/main/java/com/example/zerogrid/onboarding/OnboardingScreen.kt): Multi-hop mesh concept walkthrough.
+- [`PermissionsScreen.kt`](app/src/main/java/com/example/zerogrid/onboarding/PermissionsScreen.kt): Requesting Bluetooth, Nearby Devices, Location, and Wi-Fi permissions.
+- [`CreateIdentityScreen.kt`](app/src/main/java/com/example/zerogrid/onboarding/CreateIdentityScreen.kt): Cryptographic node pseudonym and key pair generation prompt.
 
 ### 7. ⚙️ Settings & Privacy (`settings/`)
-- [`SettingsScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/settings/SettingsScreen.kt): Radio configurations, routing preferences, battery optimization settings.
-- [`SecurityPrivacyScreen.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/settings/SecurityPrivacyScreen.kt): Encryption key management, public key export/QR code, identity reset, anonymous routing toggles.
+- [`SettingsScreen.kt`](app/src/main/java/com/example/zerogrid/settings/SettingsScreen.kt): Network mode, mesh discovery, automatic switching, and relay mode toggles.
+- [`SecurityPrivacyScreen.kt`](app/src/main/java/com/example/zerogrid/settings/SecurityPrivacyScreen.kt): End-to-End encryption management, public key fingerprint export/QR code, identity reset, and anonymous routing toggles.
 
 ### 8. 🗺 Navigation & Theme (`navigation/`, `ui/theme/`)
-- [`Routes.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/navigation/Routes.kt): `Screen` enum definition for all routes.
-- [`NavGraph.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/navigation/NavGraph.kt): Compose navigation controller with back-stack support and back-press handlers.
-- [`BottomNavigation.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/navigation/BottomNavigation.kt): Persistent bottom navigation bar with active route highlighting.
-- [`Color.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/ui/theme/Color.kt) & [`Theme.kt`](file:///c:/Users/ACER/AndroidStudioProjects/gridzero/app/src/main/java/com/example/zerogrid/ui/theme/Theme.kt): Tailored dark mesh cybernetic palette (Neon Cyan, Emergency Orange/Red, Tactical Slate).
+- [`Routes.kt`](app/src/main/java/com/example/zerogrid/navigation/Routes.kt): `Screen` enum definition for all 18 routes.
+- [`NavGraph.kt`](app/src/main/java/com/example/zerogrid/navigation/NavGraph.kt): Navigation controller with back-stack support and back-press handling.
+- [`BottomNavigation.kt`](app/src/main/java/com/example/zerogrid/navigation/BottomNavigation.kt): Persistent bottom navigation bar.
+- [`Color.kt`](app/src/main/java/com/example/zerogrid/ui/theme/Color.kt) & [`Theme.kt`](app/src/main/java/com/example/zerogrid/ui/theme/Theme.kt): Dark cybernetic palette (Neon Cyan, Emergency Orange/Red, Tactical Slate).
 
 ---
 
-## 🏗 Backend & Networking Handover: Tasks to Implement
+## 📡 Mesh Networking & Core Engine Implementation
 
-The backend/networking engineer has the following responsibilities to turn this UI into a functional off-grid mesh app:
+ZeroGrid features a multi-hop P2P communications layer:
 
-### 1. 📡 P2P Hardware Discovery & Transports
-- [ ] **Android Manifest Permissions (`AndroidManifest.xml`):**
-  - Add `BLUETOOTH_SCAN`, `BLUETOOTH_ADVERTISE`, `BLUETOOTH_CONNECT`, `ACCESS_FINE_LOCATION`, `NEARBY_WIFI_DEVICES`, `CHANGE_WIFI_MULTICAST_STATE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`.
-- [ ] **BLE Mesh Driver:**
-  - Implement GATT Server & Client for low-power neighbor discovery and small packet exchange (keepalives, handshakes, SOS beacons).
-- [ ] **Wi-Fi Direct (P2P) Driver:**
-  - Implement `WifiP2pManager` discovery, group negotiation, and socket channels for high-bandwidth data (file transfers, images).
+### 1. Transports (`mesh/transport/`)
+- **BLE Driver ([`BleMeshDriver.kt`](app/src/main/java/com/example/zerogrid/mesh/transport/BleMeshDriver.kt)):**
+  - Manages BLE Advertising, Scanning, GATT Server, and GATT Client transmission for neighbor discovery and lightweight packet exchange.
+- **Wi-Fi Direct Driver ([`WifiDirectMeshDriver.kt`](app/src/main/java/com/example/zerogrid/mesh/transport/WifiDirectMeshDriver.kt)):**
+  - Handles `WifiP2pManager` discovery and TCP socket channels for high-bandwidth file/data transfers.
 
-### 2. 🔄 Mesh Routing Protocol
-- [ ] **Packet Definition & Serialization:**
-  - Header: `packet_id`, `source_pubkey`, `dest_pubkey`, `ttl / hop_limit`, `payload_type`, `payload_len`, `signature`.
-- [ ] **Multi-Hop Relay Engine:**
-  - Routing algorithm (e.g. Flooding with Deduplication Cache, Epidemic Routing, or reactive AODV).
-  - Loop prevention (seen packet bloom filter / TTL decrement).
-- [ ] **Peer Table & Heartbeat:**
-  - Dynamic routing table tracking active neighbors, RSSI metrics, and hop counts.
+### 2. Mesh Engine & Routing (`mesh/engine/`)
+- **Mesh Engine ([`MeshEngine.kt`](app/src/main/java/com/example/zerogrid/mesh/engine/MeshEngine.kt)):**
+  - Central facade orchestrating transports, inbound/outbound packet flows, reactive `StateFlow` streams, and background tasks.
+- **Routing Engine ([`MeshRoutingEngine.kt`](app/src/main/java/com/example/zerogrid/mesh/engine/MeshRoutingEngine.kt)):**
+  - Controlled Store-and-Forward flooding with TTL decrementing, hop count tracking, and local delivery matching.
+- **Deduplication Cache ([`DeduplicationCache.kt`](app/src/main/java/com/example/zerogrid/mesh/engine/DeduplicationCache.kt)):**
+  - Synchronized LRU packet hash filter preventing routing loops and duplicate packet processing.
+- **Peer Table ([`PeerTable.kt`](app/src/main/java/com/example/zerogrid/mesh/engine/PeerTable.kt)):**
+  - Dynamic, thread-safe peer registry tracking RSSI metrics, hop distance, and last-seen timestamps.
 
-### 3. 🔐 Cryptography & Key Management (E2EE)
-- [ ] **Identity & Key Generation:**
-  - Asymmetric key generation (Ed25519 for signing, X25519 for ECDH key exchange) using Android KeyStore or native Libsodium.
-- [ ] **Message Encryption:**
-  - Noise Protocol / Signal Double Ratchet or ChaCha20-Poly1305 payload encryption for 1-to-1 chats.
-  - Channel broadcast signature validation.
-
-### 4. 🗄 Local Persistence & Database (Room / SQLCipher)
-- [ ] **Entity Models & DAOs:**
-  - `MessageEntity` (id, conversationId, senderId, text, timestamp, status, hopCount).
-  - `PeerEntity` (pubKey, alias, rssi, lastSeen, isBlocked, isTrusted).
-  - `ChannelEntity` (channelId, name, description, isSubscribed).
-  - `FileTransferEntity` (transferId, fileName, totalBytes, transferredBytes, status, path).
-  - `SosEventEntity` (sosId, senderId, latitude, longitude, incidentType, timestamp).
-
-### 5. ⚙️ C++ / Native Layer (`cpp/`)
-- [ ] Implement performance-critical packet framing, serialization (e.g. Protobuf/FlatBuffers), and cryptographic primitives in `src/main/cpp/native-lib.cpp` via JNI.
-
-### 6. 📱 Foreground Service & Background Daemon
-- [ ] Implement `MeshService` as an Android Foreground Service with ongoing notification to keep radio listeners and relay nodes active when the app is in the background.
-
-### 7. 🔗 UI Data Binding (ViewModels & StateFlow)
-- [ ] Replace screen-level `remember { mutableStateOf(...) }` mock data with `ViewModel`s exposing Kotlin `StateFlow<UIState>` consumed by the composables.
+### 3. Foreground Service (`service/`)
+- **Mesh Foreground Service ([`MeshForegroundService.kt`](app/src/main/java/com/example/zerogrid/service/MeshForegroundService.kt)):**
+  - Keeps radio listeners and relay nodes alive in the background with an ongoing Android system notification.
 
 ---
 
 ## 📂 Project Directory Structure
 
 ```
-gridzero/
+zerogrid/
 ├── app/
 │   ├── src/
 │   │   ├── main/
 │   │   │   ├── AndroidManifest.xml
 │   │   │   ├── cpp/
 │   │   │   │   ├── CMakeLists.txt         # Native C++ build configuration
-│   │   │   │   └── native-lib.cpp         # JNI bridge (scaffold ready)
+│   │   │   │   └── native-lib.cpp         # JNI bridge
 │   │   │   ├── java/com/example/zerogrid/
-│   │   │   │   ├── MainActivity.kt        # Compose Entry Point
-│   │   │   │   ├── emergency/             # SOS Beacon & Emergency Center UI
-│   │   │   │   ├── files/                 # File sharing & chunk transfer UI
-│   │   │   │   ├── home/                  # Mesh Dashboard & Quick Actions UI
-│   │   │   │   ├── mesh/                  # Peer discovery, status & telemetry UI
-│   │   │   │   ├── messaging/             # 1-to-1 & Broadcast channels UI
-│   │   │   │   ├── navigation/            # NavGraph, Route enum, BottomBar
+│   │   │   │   ├── MainActivity.kt        # App entry point
+│   │   │   │   ├── emergency/             # SOS Beacon & Emergency UI
+│   │   │   │   ├── files/                 # File sharing & transfer UI
+│   │   │   │   ├── home/                  # Mesh Dashboard UI
+│   │   │   │   ├── mesh/                  # Discovery & Network Status UI
+│   │   │   │   │   ├── engine/            # MeshEngine, Routing, PeerTable, Packets
+│   │   │   │   │   └── transport/         # BLE & Wi-Fi Direct drivers
+│   │   │   │   ├── messaging/             # Direct & Broadcast Chat UI
+│   │   │   │   ├── navigation/            # NavGraph, Routes, BottomBar
 │   │   │   │   ├── onboarding/            # Splash, Intro, Permissions & Identity UI
+│   │   │   │   ├── service/               # Mesh Foreground Service Daemon
 │   │   │   │   ├── settings/              # Settings & Security UI
-│   │   │   │   └── ui/theme/              # Material3 Theme & Color tokens
-│   │   │   └── res/                       # App icons, strings, themes
-│   ├── build.gradle.kts                   # App module build dependencies
+│   │   │   │   └── ui/theme/              # Material3 Cybernetic Theme
+│   │   │   └── res/                       # App icons, strings, resources
+│   ├── build.gradle.kts                   # Module build configuration
 │   └── proguard-rules.pro
 ├── gradle/
 │   └── libs.versions.toml                 # Version Catalog
 ├── build.gradle.kts                       # Root build configuration
 ├── settings.gradle.kts
-└── README.md                              # Project documentation & handover
+└── README.md                              # Project documentation
 ```
 
 ---
@@ -198,9 +173,9 @@ gridzero/
 ## 🚀 Getting Started for Developers
 
 ### Prerequisites
-1. **Android Studio** (Koala / Ladybug or newer recommended).
-2. **Android SDK** API level 35 installed.
-3. **Android NDK** `27.0.12077973` and **CMake** `3.22.1` (install via Android Studio SDK Manager -> SDK Tools -> NDK & CMake).
+1. **Android Studio** (Koala / Ladybug or newer).
+2. **Android SDK** API level 35.
+3. **Android NDK** `27.0.12077973` and **CMake** `3.22.1`.
 4. **JDK 17** configured as Gradle JDK.
 
 ### Building & Running
@@ -209,20 +184,16 @@ gridzero/
 git clone https://github.com/hehemohit/zerogrid.git
 
 # Navigate to project directory
-cd gridzero
+cd zerogrid
 
 # Build debug APK
 ./gradlew assembleDebug
 
-# Install on connected device
-./gradlew installDebug
+# Run unit tests
+./gradlew testDebugUnitTest
 ```
 
 ---
 
 ## 👥 Contributors & Maintainers
-- **Frontend & UI/UX Architecture:** Completed in Jetpack Compose
-- **Backend & Mesh Engine:** *In Development*
-=======
-v1
->>>>>>> 9e9bafd963afa805cb517a52a0fd0d708ffd980a
+- **ZeroGrid Core Team** — Mesh Networking & UI/UX Architecture

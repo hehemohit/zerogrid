@@ -1,4 +1,4 @@
-package com.example.zerogrid
+package com.example.zerogrid.onboarding
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -7,14 +7,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bluetooth
+import com.example.zerogrid.navigation.*
+import com.example.zerogrid.ui.theme.*
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.SettingsBluetooth // Use a different Bluetooth icon for variety
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.sp
 import com.example.zerogrid.ui.theme.*
 
 @Composable
-fun PermissionsScreen() {
+fun PermissionsScreen(onNavigate: (Screen) -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -180,16 +180,16 @@ fun PermissionsScreen() {
 
         // Bottom Actions - Continue Button (Disabled look in screenshot)
         Button(
-            onClick = { /* Handle Continue */ },
+            onClick = { onNavigate(Screen.CREATE_IDENTITY) },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = DisabledButton,
-                contentColor = GreyLabel
+                containerColor = PrimaryCyan,
+                contentColor = Color.Black
             ),
             shape = RoundedCornerShape(12.dp),
-            enabled = false // Match screenshot disabled state
+            enabled = true
         ) {
             Text(
                 text = "Continue",
@@ -309,7 +309,6 @@ fun ZeroGridStepper(currentStep: Int, totalSteps: Int) {
             val totalLineHeight = size.height
             val segmentWidth = totalLineWidth / totalSteps
             val lineThickness = 3.dp.toPx()
-            val dashEffect = 4.dp.toPx() // Dash effect for future screens
 
             for (i in 0 until totalSteps) {
                 val startX = segmentWidth * i

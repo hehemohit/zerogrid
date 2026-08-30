@@ -1,4 +1,6 @@
-package com.example.zerogrid
+package com.example.zerogrid.onboarding
+
+import com.example.zerogrid.navigation.*
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,7 +27,7 @@ import androidx.compose.ui.unit.sp
 import com.example.zerogrid.ui.theme.*
 
 @Composable
-fun CreateIdentityScreen() {
+fun CreateIdentityScreen(onNavigate: (Screen) -> Unit = {}) {
     var displayName by remember { mutableStateOf("") }
     var deviceName by remember { mutableStateOf("") }
 
@@ -238,7 +240,7 @@ fun CreateIdentityScreen() {
 
         // Bottom Action Button
         Button(
-            onClick = { /* Handle Create Identity */ },
+            onClick = { onNavigate(Screen.HOME) },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),

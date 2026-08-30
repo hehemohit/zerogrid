@@ -26,6 +26,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import com.example.zerogrid.mesh.engine.MeshEngine
+import com.example.zerogrid.mesh.engine.MeshNode
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
@@ -33,6 +36,8 @@ import com.example.zerogrid.ui.theme.*
 @Composable
 fun NearbyDevicesScreen(onNavigate: (Screen) -> Unit = {}) {
     var selectedFilter by remember { mutableStateOf("All") }
+    val meshEngine = MeshEngine.getInstance(LocalContext.current)
+    val peers by meshEngine.connectedPeers.collectAsState()
 
     Scaffold(
         containerColor = DarkBackground,
@@ -47,13 +52,13 @@ fun NearbyDevicesScreen(onNavigate: (Screen) -> Unit = {}) {
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-            MeshDiscoveryCard()
+            MeshDiscoveryCard(peers.size)
             Spacer(modifier = Modifier.height(16.dp))
             RadarGraphicCard()
             Spacer(modifier = Modifier.height(16.dp))
             FilterChipsRow(selected = selectedFilter, onSelected = { selectedFilter = it })
             Spacer(modifier = Modifier.height(16.dp))
-            DevicesListSection()
+            DevicesListSection(peers = peers)
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
@@ -105,7 +110,7 @@ private fun NearbyTopBar() {
 }
 
 @Composable
-private fun MeshDiscoveryCard() {
+private fun MeshDiscoveryCard(devicesFound: Int) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -138,12 +143,12 @@ private fun MeshDiscoveryCard() {
                 Column {
                     Text(text = "DEVICES FOUND", color = TextSecondary, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "12", color = StatusActive, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "$devicesFound", color = StatusActive, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(text = "PROTOCOL", color = TextSecondary, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "Wi-Fi Direct", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "BLE + Wi-Fi Direct", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -215,40 +220,25 @@ private fun FilterChipsRow(selected: String, onSelected: (String) -> Unit) {
 }
 
 @Composable
-private fun DevicesListSection() {
+private fun DevicesListSection(peers: List<MeshNode>) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        DeviceCard(
-            icon = Icons.Outlined.CellTower,
-            name = "Alex",
-            status = "Direct • Strong",
-            subStatus = "Last seen: 12 sec ago",
-            actionText = "Connect",
-            isActionOutlined = false
-        )
-        DeviceCard(
-            icon = Icons.AutoMirrored.Outlined.AltRoute,
-            name = "Rescue Team",
-            status = "Hop count: 2 • Via Device-7A42",
-            signalBars = 2,
-            actionText = "Connect",
-            isActionOutlined = false
-        )
-        DeviceCard(
-            icon = Icons.Outlined.Share,
-            name = "Device-7A42",
-            status = "Direct • Relay enabled",
-            signalBars = 4,
-            actionText = "View",
-            isActionOutlined = true
-        )
-        DeviceCard(
-            icon = Icons.Outlined.Share,
-            name = "Emergency Unit",
-            status = "Hop count: 3 • Relay node",
-            signalBars = 1,
-            actionText = "Connect",
-            isActionOutlined = false
-        )
+        if (peers.isEmpty()) {
+            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                Text(text = "No devices nearby. Move closer to another node.", color = TextSecondary, fontSize = 14.sp)
+            }
+        } else {
+            peers.forEach { peer ->
+                DeviceCard(
+                    icon = if (peer.transportType == MeshNode.TRANSPORT_BLE) Icons.Outlined.Bluetooth else Icons.Outlined.Wifi,
+                    name = peer.alias,
+                    status = if (peer.hopDistance == 1) "Direct • ${peer.transportType}" else "Hop count: ${peer.hopDistance}",
+                    subStatus = "Last seen: Just now",
+                    signalBars = if (peer.rssi > -60) 4 else if (peer.rssi > -80) 2 else 1,
+                    actionText = "View",
+                    isActionOutlined = true
+                )
+            }
+        }
     }
 }
 

@@ -16,12 +16,22 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import com.example.zerogrid.mesh.engine.MeshEngine
+import com.example.zerogrid.mesh.engine.MeshNode
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
 fun NetworkStatusScreen(onNavigate: (Screen) -> Unit = {}) {
+    val meshEngine = MeshEngine.getInstance(LocalContext.current)
+    val peers by meshEngine.connectedPeers.collectAsState()
+    val isMeshActive by meshEngine.isMeshActive.collectAsState()
+
+    val directPeers = peers.count { it.hopDistance == 1 }
+    val relayedPeers = peers.count { it.hopDistance > 1 }
+
     Scaffold(
         containerColor = DarkBackground,
         topBar = { NetworkStatusTopBar(onBackClick = { onNavigate(Screen.MESH) }) },
@@ -51,17 +61,18 @@ fun NetworkStatusScreen(onNavigate: (Screen) -> Unit = {}) {
             ) {
                 MetricCard(
                     title = "Active Nodes",
-                    value = "12",
-                    subtext = "4 Direct, 8 Relayed",
+                    value = peers.size.toString(),
+                    subtext = "$directPeers Direct, $relayedPeers Relayed",
                     modifier = Modifier.weight(1f)
                 )
                 MetricCard(
                     title = "Max Hop Count",
-                    value = "3",
-                    subtext = "Avg Latency 42ms",
+                    value = if (peers.isEmpty()) "0" else peers.maxOf { it.hopDistance }.toString(),
+                    subtext = "Protocol limit: 5",
                     modifier = Modifier.weight(1f)
                 )
             }
+            // ... (rest of the metric cards)
 
             Spacer(modifier = Modifier.height(10.dp))
 
@@ -96,18 +107,18 @@ fun NetworkStatusScreen(onNavigate: (Screen) -> Unit = {}) {
 
             TransportStatusCard(
                 name = "Bluetooth Low Energy (BLE)",
-                status = "Advertising & Scanning",
-                details = "Frequency: 2.4 GHz  •  Power: High  •  Peers: 8",
-                isActive = true
+                status = if (isMeshActive) "Advertising & Scanning" else "Offline",
+                details = "Frequency: 2.4 GHz  •  Status: OK",
+                isActive = isMeshActive
             )
 
             Spacer(modifier = Modifier.height(10.dp))
 
             TransportStatusCard(
                 name = "Wi-Fi Direct (P2P)",
-                status = "Group Owner Connected",
-                details = "Band: 5 GHz  •  Socket Pool: 4 Channels",
-                isActive = true
+                status = if (isMeshActive) "Discovery Protocol Active" else "Offline",
+                details = "Band: 2.4/5 GHz  •  TCP Server: port 8888",
+                isActive = isMeshActive
             )
 
             Spacer(modifier = Modifier.height(32.dp))

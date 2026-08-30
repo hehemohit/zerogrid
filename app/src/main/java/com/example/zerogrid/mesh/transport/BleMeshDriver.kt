@@ -472,7 +472,7 @@ class BleMeshDriver(
 
     private val advertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
-            Log.d(TAG, "BLE Advertising started successfully")
+            Log.d(TAG, "BLE Advertising started successfully: ${SERVICE_UUID}")
         }
 
         override fun onStartFailure(errorCode: Int) {
@@ -489,6 +489,7 @@ class BleMeshDriver(
                     val deviceName = try { device.name } catch (_: SecurityException) { null } ?: "Peer"
                     val deviceAddress = try { device.address } catch (_: SecurityException) { null } ?: "00:00:00:00:00:00"
 
+                    Log.d(TAG, "BLE Peer Found: $deviceAddress (RSSI: $rssi)")
                     discoveredDevices[deviceAddress] = device
 
                     val peerNode = MeshNode(

@@ -272,6 +272,8 @@ class WifiDirectMeshDriver(
             val deviceName = try { device.deviceName } catch (_: SecurityException) { null } ?: "Wi-Fi Peer"
             val deviceAddress = try { device.deviceAddress } catch (_: SecurityException) { null } ?: "00:00:00:00:00:00"
 
+            Log.d(TAG, "Wi-Fi Peer Found: $deviceAddress ($deviceName)")
+
             val node = MeshNode(
                 nodeId = deviceAddress,
                 alias = deviceName.ifBlank { "Wi-Fi ${deviceAddress.takeLast(4)}" },

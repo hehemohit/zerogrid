@@ -1,4 +1,4 @@
-<<<<<<< HEAD
+<<<<<<< HEAD hi J
 # ZeroGrid 🌐
 
 > **Decentralized, Off-Grid Peer-to-Peer Mesh Communication & Emergency Network for Android**

@@ -42,10 +42,10 @@ fun ZeroGridBottomBar(
         NavTab.entries.forEach { tab ->
             val selected = when (tab) {
                 NavTab.HOME -> currentScreen == Screen.HOME
-                NavTab.MESSAGES -> currentScreen == Screen.MESSAGES || currentScreen == Screen.CHANNELS || currentScreen == Screen.CHAT_DETAIL
-                NavTab.MESH -> currentScreen == Screen.MESH || currentScreen == Screen.PEER_DETAILS
-                NavTab.FILES -> currentScreen == Screen.FILES || currentScreen == Screen.SEND_FILE || currentScreen == Screen.FILE_TRANSFER
-                NavTab.SETTINGS -> currentScreen == Screen.SETTINGS
+                NavTab.MESSAGES -> (currentScreen == Screen.MESSAGES || currentScreen == Screen.CHANNELS || currentScreen == Screen.CHAT_DETAIL)
+                NavTab.MESH -> (currentScreen == Screen.MESH || currentScreen == Screen.PEER_DETAILS || currentScreen == Screen.NETWORK_STATUS)
+                NavTab.FILES -> (currentScreen == Screen.FILES || currentScreen == Screen.SEND_FILE || currentScreen == Screen.FILE_TRANSFER)
+                NavTab.SETTINGS -> (currentScreen == Screen.SETTINGS || currentScreen == Screen.SECURITY_PRIVACY)
             }
             NavigationBarItem(
                 selected = selected,

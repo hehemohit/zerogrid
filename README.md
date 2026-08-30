@@ -1,4 +1,3 @@
-<<<<<<< HEAD hi 
 # ZeroGrid 🌐
 
 > **Decentralized, Off-Grid Peer-to-Peer Mesh Communication & Emergency Network for Android**
@@ -223,6 +222,3 @@ cd gridzero
 ## 👥 Contributors & Maintainers
 - **Frontend & UI/UX Architecture:** Completed in Jetpack Compose
 - **Backend & Mesh Engine:** *In Development*
-=======
-v1
->>>>>>> 9e9bafd963afa805cb517a52a0fd0d708ffd980a

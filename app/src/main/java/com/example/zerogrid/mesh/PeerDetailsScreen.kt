@@ -1,4 +1,4 @@
-package com.example.zerogrid
+package com.example.zerogrid.mesh
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

@@ -1,4 +1,4 @@
-package com.example.zerogrid
+package com.example.zerogrid.emergency
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background

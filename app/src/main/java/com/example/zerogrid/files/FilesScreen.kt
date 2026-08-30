@@ -1,4 +1,6 @@
-package com.example.zerogrid
+package com.example.zerogrid.files
+
+import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -411,7 +413,7 @@ private fun FilesSharedBannerCard() {
                 )
                 Spacer(modifier = Modifier.width(4.dp))
                 Icon(
-                    imageVector = Icons.Outlined.ArrowForward,
+                    imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
                     contentDescription = null,
                     tint = StatusActive,
                     modifier = Modifier.size(16.dp)
@@ -499,37 +501,7 @@ private fun RecentFileItem(
     }
 }
 
-@Composable
-private fun DashboardBottomNavFilesActive() {
-    NavigationBar(
-        containerColor = BottomNavBg,
-        contentColor = TextSecondary,
-        tonalElevation = 0.dp
-    ) {
-        val items = listOf(
-            Triple("Home", Icons.Outlined.Home, false),
-            Triple("Messages", Icons.Outlined.ChatBubbleOutline, false),
-            Triple("Mesh", Icons.Outlined.Share, false),
-            Triple("Files", Icons.Outlined.Folder, true),
-            Triple("Settings", Icons.Outlined.Settings, false)
-        )
-        items.forEach { (label, icon, selected) ->
-            NavigationBarItem(
-                selected = selected,
-                onClick = { },
-                icon = { Icon(imageVector = icon, contentDescription = label) },
-                label = { Text(text = label, fontFamily = FontFamily.Monospace, fontSize = 10.sp) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color.Black,
-                    unselectedIconColor = TextSecondary,
-                    selectedTextColor = TextSecondary,
-                    unselectedTextColor = TextSecondary,
-                    indicatorColor = StatusActive
-                )
-            )
-        }
-    }
-}
+
 
 @Composable
 fun ZeroGridFilesScreen() = FilesScreen()

@@ -1,4 +1,4 @@
-package com.example.zerogrid
+package com.example.zerogrid.settings
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -14,14 +14,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.zerogrid.navigation.Screen
-import com.example.zerogrid.navigation.ZeroGridBottomBar
+import com.example.zerogrid.navigation.*
 import com.example.zerogrid.ui.theme.*
 
 @Composable
@@ -89,8 +87,7 @@ fun SettingsScreen(onNavigate: (Screen) -> Unit = {}) {
                         title = "Relay Mode",
                         subtitle = "Forward encrypted traffic",
                         checked = relayModeEnabled,
-                        onCheckedChange = { relayModeEnabled = it },
-                        isLast = true
+                        onCheckedChange = { relayModeEnabled = it }
                     )
                 }
             }
@@ -118,12 +115,17 @@ fun SettingsScreen(onNavigate: (Screen) -> Unit = {}) {
                         onClick = { }
                     )
                     HorizontalDivider(color = DividerColor, thickness = 1.dp)
+                    SettingsNavigationRow(
+                        title = "Security & Privacy",
+                        subtitle = "Keys, E2EE, Anonymity",
+                        onClick = { onNavigate(Screen.SECURITY_PRIVACY) }
+                    )
+                    HorizontalDivider(color = DividerColor, thickness = 1.dp)
                     SettingsSwitchRow(
                         title = "Emergency Alerts",
                         subtitle = "Enabled",
                         checked = emergencyAlertsEnabled,
-                        onCheckedChange = { emergencyAlertsEnabled = it },
-                        isLast = true
+                        onCheckedChange = { emergencyAlertsEnabled = it }
                     )
                 }
             }
@@ -279,8 +281,7 @@ private fun SettingsSwitchRow(
     title: String,
     subtitle: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
-    isLast: Boolean = false
+    onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -317,37 +318,7 @@ private fun SettingsSwitchRow(
     }
 }
 
-@Composable
-private fun DashboardBottomNavSettingsActive() {
-    NavigationBar(
-        containerColor = BottomNavBg,
-        contentColor = TextSecondary,
-        tonalElevation = 0.dp
-    ) {
-        val items = listOf(
-            Triple("Home", Icons.Outlined.Home, false),
-            Triple("Messages", Icons.Outlined.ChatBubbleOutline, false),
-            Triple("Mesh", Icons.Outlined.Share, false),
-            Triple("Files", Icons.Outlined.Folder, false),
-            Triple("Settings", Icons.Outlined.Settings, true)
-        )
-        items.forEach { (label, icon, selected) ->
-            NavigationBarItem(
-                selected = selected,
-                onClick = { },
-                icon = { Icon(imageVector = icon, contentDescription = label) },
-                label = { Text(text = label, fontFamily = FontFamily.Monospace, fontSize = 10.sp) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color.Black,
-                    unselectedIconColor = TextSecondary,
-                    selectedTextColor = TextSecondary,
-                    unselectedTextColor = TextSecondary,
-                    indicatorColor = StatusActive
-                )
-            )
-        }
-    }
-}
+
 
 @Composable
 fun ZeroGridSettingsScreen() = SettingsScreen()

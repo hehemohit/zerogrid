@@ -1,4 +1,6 @@
-package com.example.zerogrid
+package com.example.zerogrid.mesh
+
+import androidx.compose.material.icons.automirrored.outlined.AltRoute
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -224,7 +226,7 @@ private fun DevicesListSection() {
             isActionOutlined = false
         )
         DeviceCard(
-            icon = Icons.Outlined.AltRoute,
+            icon = Icons.AutoMirrored.Outlined.AltRoute,
             name = "Rescue Team",
             status = "Hop count: 2 • Via Device-7A42",
             signalBars = 2,
@@ -338,37 +340,7 @@ private fun DeviceCard(
     }
 }
 
-@Composable
-fun DashboardBottomNavActiveMesh() {
-    NavigationBar(
-        containerColor = BottomNavBg,
-        contentColor = TextSecondary,
-        tonalElevation = 0.dp
-    ) {
-        val items = listOf(
-            Triple("Home", Icons.Outlined.Home, false),
-            Triple("Messages", Icons.Outlined.ChatBubbleOutline, false),
-            Triple("Mesh", Icons.Outlined.Share, true),
-            Triple("Files", Icons.Outlined.Folder, false),
-            Triple("Settings", Icons.Outlined.Settings, false)
-        )
-        items.forEach { (label, icon, selected) ->
-            NavigationBarItem(
-                selected = selected,
-                onClick = { },
-                icon = { Icon(imageVector = icon, contentDescription = label) },
-                label = { Text(text = label, fontFamily = FontFamily.Monospace, fontSize = 10.sp) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color.Black,
-                    unselectedIconColor = TextSecondary,
-                    selectedTextColor = TextSecondary,
-                    unselectedTextColor = TextSecondary,
-                    indicatorColor = StatusActive
-                )
-            )
-        }
-    }
-}
+
 
 @Composable
 fun ZeroGridNearbyDevicesScreen() = NearbyDevicesScreen()

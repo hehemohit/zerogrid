@@ -1,4 +1,4 @@
-package com.example.zerogrid
+package com.example.zerogrid.home
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,7 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
@@ -42,7 +42,7 @@ fun MeshDashboardScreen(onNavigate: (Screen) -> Unit = {}) {
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-            MeshStatusCard()
+            MeshStatusCard(onNavigate = onNavigate)
             Spacer(modifier = Modifier.height(16.dp))
             QuickActionsGrid(onNavigate = onNavigate)
             Spacer(modifier = Modifier.height(24.dp))
@@ -113,8 +113,9 @@ private fun DashboardTopBar() {
 }
 
 @Composable
-private fun MeshStatusCard() {
+private fun MeshStatusCard(onNavigate: (Screen) -> Unit = {}) {
     Card(
+        onClick = { onNavigate(Screen.NETWORK_STATUS) },
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
         shape = RoundedCornerShape(16.dp)
@@ -349,37 +350,7 @@ private fun SOSFab(onNavigate: (Screen) -> Unit) {
     }
 }
 
-@Composable
-private fun DashboardBottomNav() {
-    NavigationBar(
-        containerColor = BottomNavBg,
-        contentColor = TextSecondary,
-        tonalElevation = 0.dp
-    ) {
-        val items = listOf(
-            Triple("Home", Icons.Outlined.Home, true),
-            Triple("Messages", Icons.Outlined.ChatBubbleOutline, false),
-            Triple("Mesh", Icons.Outlined.Share, false),
-            Triple("Files", Icons.Outlined.Folder, false),
-            Triple("Settings", Icons.Outlined.Settings, false)
-        )
-        items.forEach { (label, icon, selected) ->
-            NavigationBarItem(
-                selected = selected,
-                onClick = { },
-                icon = { Icon(imageVector = icon, contentDescription = label) },
-                label = { Text(text = label, fontFamily = FontFamily.Monospace, fontSize = 10.sp) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color.Black,
-                    unselectedIconColor = TextSecondary,
-                    selectedTextColor = TextSecondary,
-                    unselectedTextColor = TextSecondary,
-                    indicatorColor = StatusActive
-                )
-            )
-        }
-    }
-}
+
 
 @Composable
 fun ZeroGridDashboardScreen() = MeshDashboardScreen()

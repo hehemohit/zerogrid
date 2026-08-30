@@ -2,7 +2,13 @@ package com.example.zerogrid.navigation
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.*
-import com.example.zerogrid.*
+import com.example.zerogrid.emergency.*
+import com.example.zerogrid.files.*
+import com.example.zerogrid.home.*
+import com.example.zerogrid.mesh.*
+import com.example.zerogrid.messaging.*
+import com.example.zerogrid.onboarding.*
+import com.example.zerogrid.settings.*
 
 @Composable
 fun ZeroGridApp() {
@@ -24,7 +30,7 @@ fun ZeroGridApp() {
         }
     }
 
-    BackHandler(enabled = currentScreen != Screen.HOME || backStack.isNotEmpty()) {
+    BackHandler(enabled = (currentScreen != Screen.HOME || backStack.isNotEmpty())) {
         navigateBack()
     }
 
@@ -41,5 +47,11 @@ fun ZeroGridApp() {
         Screen.PEER_DETAILS -> PeerDetailsScreen(onNavigate = { navigateTo(it) })
         Screen.CHANNELS -> ChannelsScreen(onNavigate = { navigateTo(it) })
         Screen.CHAT_DETAIL -> ChatDetailScreen(onNavigate = { navigateTo(it) })
+        Screen.SPLASH -> SplashScreen(onNavigate = { navigateTo(it) })
+        Screen.ONBOARDING -> OnBoardingScreen(onNavigate = { navigateTo(it) })
+        Screen.PERMISSIONS -> PermissionsScreen(onNavigate = { navigateTo(it) })
+        Screen.CREATE_IDENTITY -> CreateIdentityScreen(onNavigate = { navigateTo(it) })
+        Screen.NETWORK_STATUS -> NetworkStatusScreen(onNavigate = { navigateTo(it) })
+        Screen.SECURITY_PRIVACY -> SecurityPrivacyScreen(onNavigate = { navigateTo(it) })
     }
 }

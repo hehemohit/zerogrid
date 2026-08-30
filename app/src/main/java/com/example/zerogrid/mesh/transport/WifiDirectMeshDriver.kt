@@ -1,15 +1,19 @@
 package com.example.zerogrid.mesh.transport
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.pm.PackageManager
 import android.net.NetworkInfo
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pInfo
 import android.net.wifi.p2p.WifiP2pManager
+import android.os.Build
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.example.zerogrid.mesh.engine.MeshNode
 import com.example.zerogrid.mesh.engine.MeshPacket
 import kotlinx.coroutines.CoroutineScope
@@ -106,7 +110,17 @@ class WifiDirectMeshDriver(
 
     @SuppressLint("MissingPermission")
     override fun startDiscovery() {
+        if (isRunning) {
+            Log.d(TAG, "Wi-Fi Direct discovery already running")
+            return
+        }
+
         try {
+            if (!hasRequiredPermissions()) {
+                Log.e(TAG, "Missing required permissions for Wi-Fi Direct operations")
+                return
+            }
+
             if (wifiP2pManager == null) {
                 Log.w(TAG, "Wi-Fi Direct P2P Manager not available")
                 return
@@ -139,11 +153,23 @@ class WifiDirectMeshDriver(
             )
         } catch (e: Exception) {
             Log.e(TAG, "Error starting Wi-Fi Direct discovery", e)
+            isRunning = false
         }
+    }
+
+    private fun hasRequiredPermissions(): Boolean {
+        val fineLocation = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val nearbyDevices = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.NEARBY_WIFI_DEVICES) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+        return fineLocation && nearbyDevices
     }
 
     @SuppressLint("MissingPermission")
     override fun stopDiscovery() {
+        if (!isRunning) return
         isRunning = false
         try {
             context.unregisterReceiver(p2pReceiver)

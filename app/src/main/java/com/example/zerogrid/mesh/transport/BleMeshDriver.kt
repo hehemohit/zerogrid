@@ -1,5 +1,6 @@
 package com.example.zerogrid.mesh.transport
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
@@ -21,8 +22,11 @@ import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.ParcelUuid
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.example.zerogrid.mesh.engine.MeshNode
 import com.example.zerogrid.mesh.engine.MeshPacket
 import kotlinx.coroutines.CoroutineScope
@@ -187,7 +191,17 @@ class BleMeshDriver(
 
     @SuppressLint("MissingPermission")
     override fun startDiscovery() {
+        if (isRunning) {
+            Log.d(TAG, "BLE discovery already running")
+            return
+        }
+
         try {
+            if (!hasRequiredPermissions()) {
+                Log.e(TAG, "Missing required permissions for BLE operations")
+                return
+            }
+
             val adapter = bluetoothAdapter
             if (adapter == null || !adapter.isEnabled) {
                 Log.w(TAG, "Bluetooth adapter not available or disabled")
@@ -200,6 +214,17 @@ class BleMeshDriver(
             startScanning()
         } catch (e: Exception) {
             Log.e(TAG, "Error starting BLE discovery", e)
+            isRunning = false
+        }
+    }
+
+    private fun hasRequiredPermissions(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_ADVERTISE) == PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
+        } else {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         }
     }
 

@@ -74,7 +74,9 @@ class MeshForegroundService : Service() {
 
             // Move MeshEngine work to a background scope to avoid blocking the main thread
             serviceScope.launch(Dispatchers.IO) {
+                val initStartTime = System.currentTimeMillis()
                 try {
+                    Log.d(TAG, "Initializing MeshEngine in background...")
                     val engine = MeshEngine.getInstance(applicationContext)
                     meshEngine = engine
                     
@@ -84,7 +86,9 @@ class MeshForegroundService : Service() {
                     val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
                     notificationManager.notify(NOTIFICATION_ID, updatedNotification)
 
+                    Log.d(TAG, "Starting mesh discovery...")
                     engine.startMesh()
+                    Log.d(TAG, "MeshEngine initialized and started in ${System.currentTimeMillis() - initStartTime}ms")
                 } catch (e: Exception) {
                     Log.e(TAG, "Error initializing mesh engine in background", e)
                 }

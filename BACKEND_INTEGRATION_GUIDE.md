@@ -114,8 +114,8 @@ The target architecture will introduce persistent storage for packets. This allo
 ## 7. Transport Architecture
 
 ### BLE Transport (`BleMeshDriver.kt`)
-*   **Service UUID:** `0000ZG01-0000-1000-8000-00805F9B34FB`
-*   **Characteristic UUID:** `0000ZG02-0000-1000-8000-00805F9B34FB`
+*   **Service UUID:** `0000a701-0000-1000-8000-00805f9b34fb`
+*   **Characteristic UUID:** `0000a702-0000-1000-8000-00805f9b34fb`
 *   **Verified:** Advertising and Scanning functional. GATT Server accepts incoming writes.
 *   **Target:** Implement GATT Client to perform writes to discovered remote peers.
 

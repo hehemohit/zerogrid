@@ -54,8 +54,8 @@ class BleMeshDriver(
 
     companion object {
         private const val TAG = "BleMeshDriver"
-        val SERVICE_UUID: UUID = UUID.fromString("0000ZG01-0000-1000-8000-00805F9B34FB")
-        val CHARACTERISTIC_UUID: UUID = UUID.fromString("0000ZG02-0000-1000-8000-00805F9B34FB")
+        val SERVICE_UUID: UUID = UUID.fromString("0000a701-0000-1000-8000-00805f9b34fb")
+        val CHARACTERISTIC_UUID: UUID = UUID.fromString("0000a702-0000-1000-8000-00805f9b34fb")
 
         private const val REASSEMBLY_TIMEOUT_MS = 30_000L
         private const val MAX_REASSEMBLY_SESSIONS = 10

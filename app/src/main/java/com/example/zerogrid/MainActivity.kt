@@ -9,7 +9,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import com.example.zerogrid.mesh.engine.MeshEngine
 import com.example.zerogrid.navigation.ZeroGridApp
 import com.example.zerogrid.service.MeshForegroundService
 import com.example.zerogrid.ui.theme.ZeroGridTheme
@@ -23,14 +22,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Initialize MeshEngine in app process
-        try {
-            MeshEngine.getInstance(applicationContext).startMesh()
-        } catch (e: Throwable) {
-            Log.e("MainActivity", "Error initializing MeshEngine directly", e)
-        }
-
         // Start ZeroGrid Mesh Foreground Service
+        // The service will handle MeshEngine initialization and startup
         try {
             MeshForegroundService.startService(this)
         } catch (e: Throwable) {

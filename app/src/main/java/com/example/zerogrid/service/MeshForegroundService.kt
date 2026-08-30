@@ -14,6 +14,11 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.zerogrid.MainActivity
 import com.example.zerogrid.mesh.engine.MeshEngine
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 /**
  * Android Foreground Service holding the Mesh Engine active in the background.
@@ -45,6 +50,7 @@ class MeshForegroundService : Service() {
     }
 
     private var meshEngine: MeshEngine? = null
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun onCreate() {
         super.onCreate()
@@ -52,11 +58,10 @@ class MeshForegroundService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Call startForeground IMMEDIATELY to satisfy Android's startup timeout.
+        // We use a generic "Initializing" message and update it once MeshEngine is ready.
         try {
-            meshEngine = MeshEngine.getInstance(applicationContext)
-            val nodeIdText = meshEngine?.localNodeId ?: "ZeroGrid"
-            val notification = createNotification("Node ID: $nodeIdText • Mesh Active")
-
+            val notification = createNotification("Initializing ZeroGrid Mesh...")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(
                     NOTIFICATION_ID,
@@ -67,15 +72,32 @@ class MeshForegroundService : Service() {
                 startForeground(NOTIFICATION_ID, notification)
             }
 
-            meshEngine?.startMesh()
+            // Move MeshEngine work to a background scope to avoid blocking the main thread
+            serviceScope.launch(Dispatchers.IO) {
+                try {
+                    val engine = MeshEngine.getInstance(applicationContext)
+                    meshEngine = engine
+                    
+                    // Update notification with real Node ID
+                    val nodeIdText = engine.localNodeId
+                    val updatedNotification = createNotification("Node ID: $nodeIdText • Mesh Active")
+                    val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+                    notificationManager.notify(NOTIFICATION_ID, updatedNotification)
+
+                    engine.startMesh()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error initializing mesh engine in background", e)
+                }
+            }
         } catch (e: Throwable) {
-            Log.e(TAG, "Failed to initialize MeshForegroundService on start", e)
+            Log.e(TAG, "Failed to enter foreground mode", e)
         }
         return START_STICKY
     }
 
     override fun onDestroy() {
         try {
+            serviceScope.cancel()
             meshEngine?.stopMesh()
         } catch (e: Throwable) {
             Log.e(TAG, "Error stopping mesh engine", e)

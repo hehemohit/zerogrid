@@ -23,7 +23,13 @@ data class FileTransferItem(
     val speedMbPerSec: Double,
     val hopCount: Int,
     val isCompleted: Boolean = false
-)
+) {
+    val progress: Float get() = if (fileSizeMb > 0) (transferredMb / fileSizeMb).toFloat().coerceIn(0f, 1f) else 0f
+    val fileSize: String get() = String.format("%.1f MB", fileSizeMb)
+    val transferredSize: String get() = String.format("%.1f MB", transferredMb)
+    val speed: String get() = String.format("%.1f MB/s", speedMbPerSec)
+    val isOutgoing: Boolean get() = !isIncoming
+}
 
 data class SharedFileItem(
     val fileId: String = UUID.randomUUID().toString(),
@@ -31,7 +37,9 @@ data class SharedFileItem(
     val fileSizeMb: Double,
     val senderName: String,
     val timestamp: Long = System.currentTimeMillis()
-)
+) {
+    val fileSize: String get() = String.format("%.1f MB", fileSizeMb)
+}
 
 /**
  * Top-level Mesh Engine facade for ZeroGrid.
@@ -221,22 +229,3 @@ class MeshEngine private constructor(context: Context) {
         }
     }
 }
-
-data class FileTransferItem(
-    val id: String,
-    val fileName: String,
-    val fileSize: String,
-    val transferredSize: String,
-    val progress: Float,
-    val speed: String,
-    val peerName: String,
-    val isOutgoing: Boolean
-)
-
-data class SharedFileItem(
-    val id: String,
-    val fileName: String,
-    val fileSize: String,
-    val senderName: String,
-    val timestamp: Long
-)

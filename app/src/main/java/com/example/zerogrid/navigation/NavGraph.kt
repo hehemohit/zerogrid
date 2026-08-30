@@ -29,6 +29,7 @@ import com.example.zerogrid.mesh.engine.MeshEngine
 import com.example.zerogrid.messaging.*
 import com.example.zerogrid.onboarding.*
 import com.example.zerogrid.settings.*
+import com.example.zerogrid.debug.*
 import com.example.zerogrid.ui.theme.*
 
 private val SosRed = Color(0xFFFF3B30)
@@ -43,11 +44,15 @@ fun ZeroGridApp() {
     val sosAlerts by meshEngine.sosAlerts.collectAsState()
     val acknowledgedAlertIds by meshEngine.acknowledgedAlertIds.collectAsState()
 
-    // Find the latest unacknowledged SOS alert to pop up globally across any screen
-    val activeSosAlert = sosAlerts.firstOrNull { it.packetId !in acknowledgedAlertIds }
+    // Only show pop-up for REMOTE alerts (not ones this device sent itself)
+    val activeSosAlert = sosAlerts.firstOrNull {
+        it.packetId !in acknowledgedAlertIds && it.senderId != meshEngine.localNodeId
+    }
 
     var currentScreen by remember { mutableStateOf(Screen.HOME) }
     val backStack = remember { mutableStateListOf<Screen>() }
+    // Peer ID selected for direct chat — passed into PEER_DIRECT_CHAT screen
+    var selectedPeerId by remember { mutableStateOf("") }
 
     fun navigateTo(screen: Screen) {
         if (currentScreen != screen) {
@@ -64,6 +69,11 @@ fun ZeroGridApp() {
         }
     }
 
+    fun openPeerChat(peerId: String) {
+        selectedPeerId = peerId
+        navigateTo(Screen.PEER_DIRECT_CHAT)
+    }
+
     BackHandler(enabled = (currentScreen != Screen.HOME || backStack.isNotEmpty())) {
         navigateBack()
     }
@@ -71,7 +81,14 @@ fun ZeroGridApp() {
     Box(modifier = Modifier.fillMaxSize()) {
         when (currentScreen) {
             Screen.HOME -> MeshDashboardScreen(onNavigate = { navigateTo(it) })
-            Screen.MESSAGES -> MessagesScreen(onNavigate = { navigateTo(it) })
+            Screen.MESSAGES -> MessagesScreen(
+                onNavigate = { navigateTo(it) },
+                onOpenPeerChat = { peerId -> openPeerChat(peerId) }
+            )
+            Screen.PEER_DIRECT_CHAT -> PeerDirectChatScreen(
+                peerId = selectedPeerId,
+                onNavigate = { navigateTo(it) }
+            )
             Screen.MESH -> NearbyDevicesScreen(onNavigate = { navigateTo(it) })
             Screen.FILES -> FilesScreen(onNavigate = { navigateTo(it) })
             Screen.SETTINGS -> SettingsScreen(onNavigate = { navigateTo(it) })
@@ -88,7 +105,9 @@ fun ZeroGridApp() {
             Screen.CREATE_IDENTITY -> CreateIdentityScreen(onNavigate = { navigateTo(it) })
             Screen.NETWORK_STATUS -> NetworkStatusScreen(onNavigate = { navigateTo(it) })
             Screen.SECURITY_PRIVACY -> SecurityPrivacyScreen(onNavigate = { navigateTo(it) })
+            Screen.DEBUG_CONSOLE -> DebugConsoleScreen(onNavigate = { navigateTo(it) })
         }
+
 
         // Global High-Priority Emergency Pop-Up Alert Dialog
         if (activeSosAlert != null) {

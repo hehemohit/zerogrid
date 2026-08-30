@@ -1,6 +1,8 @@
 package com.example.zerogrid.mesh.engine
 
 import android.util.Log
+import com.example.zerogrid.debug.DebugLevel
+import com.example.zerogrid.debug.DebugLogger
 import com.example.zerogrid.mesh.transport.MeshTransport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -11,7 +13,7 @@ import kotlinx.coroutines.launch
 
 /**
  * Multi-hop Store-and-Forward Routing Coordinator for ZeroGrid.
- * Implements deduplication, local delivery, and controlled packet relay across transports.
+ * Implements deduplication, local delivery first, and controlled packet relay across transports.
  */
 class MeshRoutingEngine(
     private val localNodeId: String,
@@ -53,21 +55,31 @@ class MeshRoutingEngine(
         val sourceName = sourceTransport?.transportName ?: "Local"
         Log.d(
             TAG,
-            "Processing packet ${packet.packetId} from ${packet.senderId} via $sourceName (TTL=${packet.ttl}, Hops=${packet.hopCount})"
+            "Processing packet from ${packet.senderId} (Target: ${packet.recipientId}) via $sourceName (TTL=${packet.ttl}, Hops=${packet.hopCount})"
+        )
+        DebugLogger.log(
+            TAG,
+            "Processing packet from ${packet.senderId} (Target: ${packet.recipientId}) via $sourceName",
+            DebugLevel.DEBUG
         )
 
-        // 2. Check local delivery
-        val isTargetedToMe = packet.recipientId == localNodeId
-        val isBroadcast = packet.recipientId == MeshPacket.BROADCAST_ADDRESS
+        // 2. Check local delivery first
+        val isBroadcast = packet.recipientId == MeshPacket.BROADCAST_ADDRESS || packet.recipientId == "*"
+        val isTargetedToMe = isRecipientMatch(packet.recipientId, localNodeId)
 
         if (isTargetedToMe || isBroadcast) {
-            Log.d(TAG, "Packet ${packet.packetId} delivered locally")
+            Log.i(TAG, "Target reached! Consuming locally: ${packet.packetId}")
+            DebugLogger.log(
+                TAG,
+                "🎯 Target reached! Consuming locally: ${packet.packetId} (Type: ${packet.type}, From: ${packet.senderId})",
+                DebugLevel.INFO
+            )
             scope.launch {
                 _incomingPackets.emit(packet)
             }
         }
 
-        // 3. Multi-Hop Forwarding & Relay
+        // 3. Multi-Hop Forwarding & Relay (Only forward if broadcast or not targeted to me, and TTL > 1)
         val shouldForward = (isBroadcast || !isTargetedToMe) && (packet.ttl > 1)
         if (shouldForward) {
             val relayedPacket = packet.copy(
@@ -81,10 +93,31 @@ class MeshRoutingEngine(
                         TAG,
                         "Relaying packet ${relayedPacket.packetId} to neighbor via ${transport.transportName} (Remaining TTL=${relayedPacket.ttl})"
                     )
+                    DebugLogger.log(
+                        TAG,
+                        "🔄 Relaying packet ${relayedPacket.packetId} via ${transport.transportName} (TTL=${relayedPacket.ttl})",
+                        DebugLevel.DEBUG
+                    )
                     transport.sendPacket(relayedPacket)
                 }
             }
         }
+    }
+
+    /**
+     * Checks if the recipientId matches our local node identity, handling:
+     * - Exact logical NodeID ("NODE-d48923d7")
+     * - Case-insensitive match
+     * - Node suffix / prefix ("d48923d7" vs "NODE-d48923d7")
+     * - Direct single-hop MAC-addressed delivery over BLE
+     */
+    private fun isRecipientMatch(recipientId: String, localNodeId: String): Boolean {
+        if (recipientId.equals(localNodeId, ignoreCase = true)) return true
+        if (recipientId.equals(localNodeId.removePrefix("NODE-"), ignoreCase = true)) return true
+        if (localNodeId.equals("NODE-$recipientId", ignoreCase = true)) return true
+        // If recipientId is a raw hardware address (e.g. "XX:XX:XX:..."), direct delivery is accepted
+        if (recipientId.contains(":") && recipientId.length >= 17) return true
+        return false
     }
 
     fun sendOutboundPacket(packet: MeshPacket): Boolean {
@@ -92,6 +125,7 @@ class MeshRoutingEngine(
         deduplicationCache.isDuplicateAndRecord(packet.packetId)
 
         Log.d(TAG, "Sending outbound packet ${packet.packetId} (Type: ${packet.type})")
+        DebugLogger.log(TAG, "📤 Outbound ${packet.type} to ${packet.recipientId}", DebugLevel.DEBUG)
         
         var sentCount = 0
         activeTransports.forEach { transport ->

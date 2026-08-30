@@ -5,7 +5,7 @@ package com.example.zerogrid.mesh.engine
  */
 data class MeshNode(
     val nodeId: String,
-    val alias: String,
+    var alias: String,
     var rssi: Int = 0,
     var transportType: String = TRANSPORT_BLE,
     var lastSeenTimestamp: Long = System.currentTimeMillis(),

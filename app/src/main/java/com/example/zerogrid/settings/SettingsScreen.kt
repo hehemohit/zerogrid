@@ -2,6 +2,7 @@ package com.example.zerogrid.settings
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -127,6 +128,52 @@ fun SettingsScreen(onNavigate: (Screen) -> Unit = {}) {
                         checked = emergencyAlertsEnabled,
                         onCheckedChange = { emergencyAlertsEnabled = it }
                     )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+            // ── DEBUG SECTION ───────────────────────────────────────────────
+            Text(
+                text = "DEVELOPER",
+                color = TextSecondary,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = CardBackground),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, Color(0xFF2A2D36))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onNavigate(Screen.DEBUG_CONSOLE) }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(Color(0xFF1A1A2E), RoundedCornerShape(10.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.BugReport,
+                            contentDescription = null,
+                            tint = Color(0xFF82B1FF),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Debug Console", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text("Live BLE trace, MTU, packet log", color = TextSecondary, fontSize = 12.sp)
+                    }
+                    Icon(imageVector = Icons.Outlined.ChevronRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(20.dp))
                 }
             }
 

@@ -16,6 +16,9 @@ class PeerTable {
         } else {
             existing.lastSeenTimestamp = System.currentTimeMillis()
             existing.rssi = node.rssi
+            if (node.alias.isNotBlank() && !node.alias.startsWith("Peer ") && node.alias != "Peer") {
+                existing.alias = node.alias
+            }
             if (node.hopDistance < existing.hopDistance) {
                 existing.hopDistance = node.hopDistance
                 existing.transportType = node.transportType

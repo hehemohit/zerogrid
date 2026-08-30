@@ -1,7 +1,6 @@
 package com.example.zerogrid.mesh
 
 import androidx.compose.material.icons.automirrored.outlined.AltRoute
-
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,22 +20,39 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.mesh.engine.MeshEngine
+import com.example.zerogrid.mesh.engine.MeshNode
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
 fun NearbyDevicesScreen(onNavigate: (Screen) -> Unit = {}) {
+    val context = LocalContext.current
+    val meshEngine = remember { MeshEngine.getInstance(context) }
+    val connectedPeers by meshEngine.connectedPeers.collectAsState()
+    val isMeshActive by meshEngine.isMeshActive.collectAsState()
+
     var selectedFilter by remember { mutableStateOf("All") }
+
+    val filteredPeers = remember(connectedPeers, selectedFilter) {
+        when (selectedFilter) {
+            "Direct" -> connectedPeers.filter { it.isDirectNeighbor }
+            "2 Hops" -> connectedPeers.filter { it.hopDistance == 2 }
+            "Relay" -> connectedPeers.filter { !it.isDirectNeighbor }
+            else -> connectedPeers
+        }
+    }
 
     Scaffold(
         containerColor = DarkBackground,
-        topBar = { NearbyTopBar() },
+        topBar = { NearbyTopBar(onBackClick = { onNavigate(Screen.HOME) }) },
         bottomBar = { ZeroGridBottomBar(currentScreen = Screen.MESH, onNavigate = onNavigate) }
     ) { paddingValues ->
         Column(
@@ -47,20 +63,27 @@ fun NearbyDevicesScreen(onNavigate: (Screen) -> Unit = {}) {
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-            MeshDiscoveryCard()
+            MeshDiscoveryCard(
+                peersCount = connectedPeers.size,
+                isMeshActive = isMeshActive,
+                protocol = if (meshEngine.getWifiDirectRunning()) "BLE + Wi-Fi Direct" else "BLE"
+            )
             Spacer(modifier = Modifier.height(16.dp))
-            RadarGraphicCard()
+            RadarGraphicCard(isMeshActive = isMeshActive)
             Spacer(modifier = Modifier.height(16.dp))
             FilterChipsRow(selected = selectedFilter, onSelected = { selectedFilter = it })
             Spacer(modifier = Modifier.height(16.dp))
-            DevicesListSection()
+            DevicesListSection(
+                peers = filteredPeers,
+                onNavigate = onNavigate
+            )
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
 
 @Composable
-private fun NearbyTopBar() {
+private fun NearbyTopBar(onBackClick: () -> Unit = {}) {
     Column {
         Row(
             modifier = Modifier
@@ -70,33 +93,20 @@ private fun NearbyTopBar() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = StatusActive,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Nearby Devices",
                     color = StatusActive,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold
-                )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Outlined.Search,
-                    contentDescription = "Search",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(20.dp))
-                Icon(
-                    imageVector = Icons.Outlined.MoreVert,
-                    contentDescription = "More",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
                 )
             }
         }
@@ -105,7 +115,11 @@ private fun NearbyTopBar() {
 }
 
 @Composable
-private fun MeshDiscoveryCard() {
+private fun MeshDiscoveryCard(
+    peersCount: Int,
+    isMeshActive: Boolean,
+    protocol: String
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -113,17 +127,17 @@ private fun MeshDiscoveryCard() {
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(8.dp).background(StatusActive, CircleShape))
+                Box(modifier = Modifier.size(8.dp).background(if (isMeshActive) StatusActive else TextSecondary, CircleShape))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Mesh Discovery Active",
-                    color = StatusActive,
+                    text = if (isMeshActive) "Mesh Discovery Active" else "Discovery Inactive",
+                    color = if (isMeshActive) StatusActive else TextSecondary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
             Text(
-                text = "Scanning for nearby ZeroGrid devices...",
+                text = if (isMeshActive) "Scanning for nearby ZeroGrid devices..." else "Turn on mesh discovery in Settings",
                 color = TextSecondary,
                 fontSize = 13.sp,
                 fontFamily = FontFamily.Monospace,
@@ -138,12 +152,12 @@ private fun MeshDiscoveryCard() {
                 Column {
                     Text(text = "DEVICES FOUND", color = TextSecondary, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "12", color = StatusActive, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(text = peersCount.toString(), color = StatusActive, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text(text = "PROTOCOL", color = TextSecondary, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "Wi-Fi Direct", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(text = protocol, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -151,7 +165,7 @@ private fun MeshDiscoveryCard() {
 }
 
 @Composable
-private fun RadarGraphicCard() {
+private fun RadarGraphicCard(isMeshActive: Boolean) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -169,13 +183,13 @@ private fun RadarGraphicCard() {
                 modifier = Modifier
                     .size(48.dp)
                     .background(SurfaceDarker, CircleShape)
-                    .border(1.dp, StatusActive, CircleShape),
+                    .border(1.dp, if (isMeshActive) StatusActive else TextSecondary, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.PhoneAndroid,
                     contentDescription = "Device",
-                    tint = StatusActive,
+                    tint = if (isMeshActive) StatusActive else TextSecondary,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -215,40 +229,67 @@ private fun FilterChipsRow(selected: String, onSelected: (String) -> Unit) {
 }
 
 @Composable
-private fun DevicesListSection() {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        DeviceCard(
-            icon = Icons.Outlined.CellTower,
-            name = "Alex",
-            status = "Direct • Strong",
-            subStatus = "Last seen: 12 sec ago",
-            actionText = "Connect",
-            isActionOutlined = false
-        )
-        DeviceCard(
-            icon = Icons.AutoMirrored.Outlined.AltRoute,
-            name = "Rescue Team",
-            status = "Hop count: 2 • Via Device-7A42",
-            signalBars = 2,
-            actionText = "Connect",
-            isActionOutlined = false
-        )
-        DeviceCard(
-            icon = Icons.Outlined.Share,
-            name = "Device-7A42",
-            status = "Direct • Relay enabled",
-            signalBars = 4,
-            actionText = "View",
-            isActionOutlined = true
-        )
-        DeviceCard(
-            icon = Icons.Outlined.Share,
-            name = "Emergency Unit",
-            status = "Hop count: 3 • Relay node",
-            signalBars = 1,
-            actionText = "Connect",
-            isActionOutlined = false
-        )
+private fun DevicesListSection(
+    peers: List<MeshNode>,
+    onNavigate: (Screen) -> Unit
+) {
+    if (peers.isEmpty()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.DeviceUnknown,
+                    contentDescription = null,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(36.dp)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "No devices found",
+                    color = TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Ensure Bluetooth and Wi-Fi Direct are enabled on nearby devices running ZeroGrid.",
+                    color = TextSecondary,
+                    fontSize = 12.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+    } else {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            peers.forEach { peer ->
+                val statusText = if (peer.isDirectNeighbor) "Direct • Strong" else "Hop count: ${peer.hopDistance} • Mesh Relay"
+                val signalBars = when {
+                    peer.rssi > -60 -> 4
+                    peer.rssi > -75 -> 3
+                    peer.rssi > -90 -> 2
+                    else -> 1
+                }
+
+                DeviceCard(
+                    icon = if (peer.isDirectNeighbor) Icons.Outlined.CellTower else Icons.AutoMirrored.Outlined.AltRoute,
+                    name = peer.alias.ifEmpty { peer.nodeId },
+                    status = statusText,
+                    subStatus = "Transport: ${peer.transportType}",
+                    signalBars = signalBars,
+                    actionText = "Message",
+                    isActionOutlined = false,
+                    onActionClick = { onNavigate(Screen.CHAT_DETAIL) }
+                )
+            }
+        }
     }
 }
 
@@ -260,7 +301,8 @@ private fun DeviceCard(
     subStatus: String? = null,
     signalBars: Int? = null,
     actionText: String,
-    isActionOutlined: Boolean
+    isActionOutlined: Boolean,
+    onActionClick: () -> Unit = {}
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -318,7 +360,7 @@ private fun DeviceCard(
 
             if (isActionOutlined) {
                 OutlinedButton(
-                    onClick = { },
+                    onClick = onActionClick,
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
                     border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor),
@@ -328,7 +370,7 @@ private fun DeviceCard(
                 }
             } else {
                 Button(
-                    onClick = { },
+                    onClick = onActionClick,
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = TextPrimary, contentColor = Color.Black),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
@@ -340,8 +382,6 @@ private fun DeviceCard(
     }
 }
 
-
-
 @Composable
 fun ZeroGridNearbyDevicesScreen() = NearbyDevicesScreen()
 
@@ -351,4 +391,4 @@ fun ZeroGridNearbyDevicesPreview() {
     ZeroGridTheme {
         ZeroGridNearbyDevicesScreen()
     }
-}
+}

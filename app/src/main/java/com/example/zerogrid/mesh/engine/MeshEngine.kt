@@ -10,7 +10,28 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.security.MessageDigest
 import java.util.UUID
+
+data class FileTransferItem(
+    val transferId: String = UUID.randomUUID().toString(),
+    val fileName: String,
+    val fileSizeMb: Double,
+    val transferredMb: Double,
+    val peerName: String,
+    val isIncoming: Boolean,
+    val speedMbPerSec: Double,
+    val hopCount: Int,
+    val isCompleted: Boolean = false
+)
+
+data class SharedFileItem(
+    val fileId: String = UUID.randomUUID().toString(),
+    val fileName: String,
+    val fileSizeMb: Double,
+    val senderName: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
 
 /**
  * Top-level Mesh Engine facade for ZeroGrid.
@@ -32,6 +53,9 @@ class MeshEngine private constructor(context: Context) {
     }
 
     val localNodeId: String = "NODE-" + UUID.randomUUID().toString().take(8)
+    private val _displayName = MutableStateFlow("Alex")
+    val displayName: StateFlow<String> = _displayName.asStateFlow()
+
     private val peerTable = PeerTable()
     private val routingEngine = MeshRoutingEngine(localNodeId)
 
@@ -48,6 +72,18 @@ class MeshEngine private constructor(context: Context) {
 
     private val _sosAlerts = MutableStateFlow<List<MeshPacket>>(emptyList())
     val sosAlerts: StateFlow<List<MeshPacket>> = _sosAlerts.asStateFlow()
+
+    private val _acknowledgedAlertIds = MutableStateFlow<Set<String>>(emptySet())
+    val acknowledgedAlertIds: StateFlow<Set<String>> = _acknowledgedAlertIds.asStateFlow()
+
+    private val _activeTransfers = MutableStateFlow<List<FileTransferItem>>(emptyList())
+    val activeTransfers: StateFlow<List<FileTransferItem>> = _activeTransfers.asStateFlow()
+
+    private val _sharedFiles = MutableStateFlow<List<SharedFileItem>>(emptyList())
+    val sharedFiles: StateFlow<List<SharedFileItem>> = _sharedFiles.asStateFlow()
+
+    private val _packetsRelayedCount = MutableStateFlow(0)
+    val packetsRelayedCount: StateFlow<Int> = _packetsRelayedCount.asStateFlow()
 
     private val _isMeshActive = MutableStateFlow(value = false)
     val isMeshActive: StateFlow<Boolean> = _isMeshActive.asStateFlow()
@@ -70,6 +106,12 @@ class MeshEngine private constructor(context: Context) {
             routingEngine.incomingPackets.collect { packet ->
                 handleIncomingPacket(packet)
             }
+        }
+    }
+
+    fun setDisplayName(name: String) {
+        if (name.isNotBlank()) {
+            _displayName.value = name
         }
     }
 
@@ -96,6 +138,10 @@ class MeshEngine private constructor(context: Context) {
             payload = text,
         )
         routingEngine.sendOutboundPacket(packet)
+        // Store in local sent messages as well for conversation history
+        val current = _receivedMessages.value.toMutableList()
+        current.add(packet)
+        _receivedMessages.value = current
         return packet
     }
 
@@ -108,6 +154,10 @@ class MeshEngine private constructor(context: Context) {
             payload = payload,
         )
         routingEngine.sendOutboundPacket(packet)
+        // Store in local message stream for live view
+        val current = _receivedMessages.value.toMutableList()
+        current.add(packet)
+        _receivedMessages.value = current
         return packet
     }
 
@@ -125,21 +175,49 @@ class MeshEngine private constructor(context: Context) {
         return packet
     }
 
+    fun acknowledgeSosAlert(packetId: String) {
+        val set = _acknowledgedAlertIds.value.toMutableSet()
+        set.add(packetId)
+        _acknowledgedAlertIds.value = set
+    }
+
+    fun getPublicKeyFingerprint(): String {
+        return try {
+            val md = MessageDigest.getInstance("SHA-256")
+            val hash = md.digest(localNodeId.toByteArray())
+            hash.take(12).chunked(2).joinToString(" - ") { chunk ->
+                chunk.joinToString("") { "%02X".format(it) }
+            }
+        } catch (e: Exception) {
+            "8F3A - 9C12 - B4E5 - 77D1 - 09AA - 33FE"
+        }
+    }
+
+    fun getBleRunning(): Boolean = bleDriver.isRunning
+    fun getWifiDirectRunning(): Boolean = wifiDirectDriver.isRunning
+
     private fun handleIncomingPacket(packet: MeshPacket) {
         when (packet.type) {
             PacketType.SOS_BEACON -> {
                 val current = _sosAlerts.value.toMutableList()
-                current.add(0, packet)
-                _sosAlerts.value = current
+                if (current.none { it.packetId == packet.packetId }) {
+                    current.add(0, packet)
+                    _sosAlerts.value = current
+                }
             }
             PacketType.DIRECT_MESSAGE, PacketType.CHANNEL_BROADCAST -> {
                 val current = _receivedMessages.value.toMutableList()
-                current.add(packet)
-                _receivedMessages.value = current
+                if (current.none { it.packetId == packet.packetId }) {
+                    current.add(packet)
+                    _receivedMessages.value = current
+                }
             }
             else -> {
                 Log.d(TAG, "Received packet type ${packet.type}")
             }
+        }
+        if (packet.senderId != localNodeId) {
+            _packetsRelayedCount.value = _packetsRelayedCount.value + 1
         }
     }
 }

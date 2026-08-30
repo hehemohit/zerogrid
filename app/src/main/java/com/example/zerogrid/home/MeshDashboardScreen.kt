@@ -14,23 +14,33 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.mesh.engine.MeshEngine
+import com.example.zerogrid.mesh.engine.MeshNode
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
 fun MeshDashboardScreen(onNavigate: (Screen) -> Unit = {}) {
+    val context = LocalContext.current
+    val meshEngine = remember { MeshEngine.getInstance(context) }
+    val connectedPeers by meshEngine.connectedPeers.collectAsState()
+    val isMeshActive by meshEngine.isMeshActive.collectAsState()
+    val sosAlerts by meshEngine.sosAlerts.collectAsState()
+    val receivedMessages by meshEngine.receivedMessages.collectAsState()
+    val activeTransfers by meshEngine.activeTransfers.collectAsState()
+
     Scaffold(
         containerColor = DarkBackground,
-        topBar = { DashboardTopBar() },
+        topBar = { DashboardTopBar(isMeshActive = isMeshActive) },
         bottomBar = { ZeroGridBottomBar(currentScreen = Screen.HOME, onNavigate = onNavigate) },
         floatingActionButton = { SOSFab(onNavigate = onNavigate) }
     ) { paddingValues ->
@@ -42,18 +52,31 @@ fun MeshDashboardScreen(onNavigate: (Screen) -> Unit = {}) {
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-            MeshStatusCard(onNavigate = onNavigate)
+            MeshStatusCard(
+                peers = connectedPeers,
+                isMeshActive = isMeshActive,
+                onNavigate = onNavigate
+            )
             Spacer(modifier = Modifier.height(16.dp))
-            QuickActionsGrid(onNavigate = onNavigate)
+            QuickActionsGrid(
+                peersCount = connectedPeers.size,
+                unreadCount = receivedMessages.size,
+                transfersCount = activeTransfers.size,
+                alertsCount = sosAlerts.size,
+                onNavigate = onNavigate
+            )
             Spacer(modifier = Modifier.height(24.dp))
-            NearbyDevicesSection(onNavigate = onNavigate)
+            NearbyDevicesSection(
+                peers = connectedPeers,
+                onNavigate = onNavigate
+            )
             Spacer(modifier = Modifier.height(32.dp)) // Extra space for FAB
         }
     }
 }
 
 @Composable
-private fun DashboardTopBar() {
+private fun DashboardTopBar(isMeshActive: Boolean) {
     Column {
         Row(
             modifier = Modifier
@@ -66,13 +89,13 @@ private fun DashboardTopBar() {
                 Icon(
                     imageVector = Icons.Outlined.Shield,
                     contentDescription = "Shield",
-                    tint = StatusActive,
+                    tint = if (isMeshActive) StatusActive else TextSecondary,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "ZeroGrid",
-                    color = StatusActive,
+                    color = if (isMeshActive) StatusActive else TextPrimary,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -82,19 +105,19 @@ private fun DashboardTopBar() {
                 // Mesh Active Pill
                 Row(
                     modifier = Modifier
-                        .background(Color(0xFF1A3B40), RoundedCornerShape(16.dp))
+                        .background(if (isMeshActive) Color(0xFF1A3B40) else SurfaceDarker, RoundedCornerShape(16.dp))
                         .padding(horizontal = 12.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
                         modifier = Modifier
                             .size(6.dp)
-                            .background(StatusActive, CircleShape)
+                            .background(if (isMeshActive) StatusActive else TextSecondary, CircleShape)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "Mesh Active",
-                        color = StatusActive,
+                        text = if (isMeshActive) "Mesh Active" else "Mesh Inactive",
+                        color = if (isMeshActive) StatusActive else TextSecondary,
                         fontSize = 12.sp,
                         fontFamily = FontFamily.Monospace
                     )
@@ -103,7 +126,7 @@ private fun DashboardTopBar() {
                 Icon(
                     imageVector = Icons.Default.SignalCellularAlt,
                     contentDescription = "Signal",
-                    tint = StatusActive,
+                    tint = if (isMeshActive) StatusActive else TextSecondary,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -113,7 +136,15 @@ private fun DashboardTopBar() {
 }
 
 @Composable
-private fun MeshStatusCard(onNavigate: (Screen) -> Unit = {}) {
+private fun MeshStatusCard(
+    peers: List<MeshNode>,
+    isMeshActive: Boolean,
+    onNavigate: (Screen) -> Unit = {}
+) {
+    val relaysCount = peers.count { !it.isDirectNeighbor }
+    val routesCount = if (peers.isEmpty()) 0 else peers.map { it.hopDistance }.distinct().size
+    val latencyText = if (peers.isEmpty()) "--" else "${35 + (relaysCount * 15)}ms"
+
     Card(
         onClick = { onNavigate(Screen.NETWORK_STATUS) },
         modifier = Modifier.fillMaxWidth(),
@@ -127,11 +158,11 @@ private fun MeshStatusCard(onNavigate: (Screen) -> Unit = {}) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.size(8.dp).background(StatusActive, CircleShape))
+                    Box(modifier = Modifier.size(8.dp).background(if (isMeshActive) StatusActive else TextSecondary, CircleShape))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "MESH CONNECTED",
-                        color = StatusActive,
+                        text = if (isMeshActive) "MESH CONNECTED" else "MESH DISCONNECTED",
+                        color = if (isMeshActive) StatusActive else TextSecondary,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -139,12 +170,12 @@ private fun MeshStatusCard(onNavigate: (Screen) -> Unit = {}) {
                 Icon(
                     imageVector = Icons.Outlined.Share,
                     contentDescription = "Mesh",
-                    tint = StatusActive,
+                    tint = if (isMeshActive) StatusActive else TextSecondary,
                     modifier = Modifier.size(28.dp)
                 )
             }
             Text(
-                text = "Wi-Fi Direct Active",
+                text = if (isMeshActive) "BLE & Wi-Fi Direct Active" else "Transports offline",
                 color = TextSecondary,
                 fontSize = 13.sp,
                 fontFamily = FontFamily.Monospace,
@@ -153,18 +184,18 @@ private fun MeshStatusCard(onNavigate: (Screen) -> Unit = {}) {
 
             // Metrics Grid
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MetricCard("Peers", "12", Modifier.weight(1f))
-                MetricCard("Routes", "3", Modifier.weight(1f))
+                MetricCard("Peers", peers.size.toString(), Modifier.weight(1f))
+                MetricCard("Routes", routesCount.toString(), Modifier.weight(1f))
             }
             Spacer(modifier = Modifier.height(12.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MetricCard("Relays", "2", Modifier.weight(1f))
-                MetricCard("Latency", "45ms", Modifier.weight(1f))
+                MetricCard("Relays", relaysCount.toString(), Modifier.weight(1f))
+                MetricCard("Latency", latencyText, Modifier.weight(1f))
             }
 
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Internet unavailable • ZeroGrid operating normally",
+                text = "Internet unavailable • ZeroGrid operating off-grid",
                 color = TextSecondary,
                 fontSize = 13.sp
             )
@@ -188,14 +219,20 @@ private fun MetricCard(label: String, value: String, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun QuickActionsGrid(onNavigate: (Screen) -> Unit) {
+private fun QuickActionsGrid(
+    peersCount: Int,
+    unreadCount: Int,
+    transfersCount: Int,
+    alertsCount: Int,
+    onNavigate: (Screen) -> Unit
+) {
     Column {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             QuickActionCard(
                 modifier = Modifier.weight(1f),
                 icon = Icons.Outlined.ChatBubbleOutline,
                 title = "Messages",
-                badgeText = "3 unread",
+                badgeText = if (unreadCount > 0) "$unreadCount new" else null,
                 iconTint = StatusActive,
                 onClick = { onNavigate(Screen.MESSAGES) }
             )
@@ -203,7 +240,7 @@ private fun QuickActionsGrid(onNavigate: (Screen) -> Unit) {
                 modifier = Modifier.weight(1f),
                 icon = Icons.Outlined.Share,
                 title = "Mesh Network",
-                subtitle = "12 peers",
+                subtitle = "$peersCount peers",
                 iconTint = StatusActive,
                 onClick = { onNavigate(Screen.MESH) }
             )
@@ -214,7 +251,7 @@ private fun QuickActionsGrid(onNavigate: (Screen) -> Unit) {
                 modifier = Modifier.weight(1f),
                 icon = Icons.Outlined.Folder,
                 title = "Files",
-                subtitle = "2 active transfers",
+                subtitle = if (transfersCount > 0) "$transfersCount active" else "0 active",
                 iconTint = StatusActive,
                 onClick = { onNavigate(Screen.FILES) }
             )
@@ -222,10 +259,10 @@ private fun QuickActionsGrid(onNavigate: (Screen) -> Unit) {
                 modifier = Modifier.weight(1f),
                 icon = Icons.Outlined.Emergency,
                 title = "SOS",
-                subtitle = "2 active alerts",
-                iconTint = AlertPink,
-                borderColor = AlertRedBorder,
-                subtitleColor = AlertPink,
+                subtitle = "$alertsCount active alerts",
+                iconTint = if (alertsCount > 0) AlertPink else StatusActive,
+                borderColor = if (alertsCount > 0) AlertRedBorder else Color.Transparent,
+                subtitleColor = if (alertsCount > 0) AlertPink else TextSecondary,
                 onClick = { onNavigate(Screen.SOS_CENTER) }
             )
         }
@@ -287,7 +324,10 @@ private fun QuickActionCard(
 }
 
 @Composable
-private fun NearbyDevicesSection(onNavigate: (Screen) -> Unit) {
+private fun NearbyDevicesSection(
+    peers: List<MeshNode>,
+    onNavigate: (Screen) -> Unit
+) {
     Column {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -304,12 +344,52 @@ private fun NearbyDevicesSection(onNavigate: (Screen) -> Unit) {
             colors = CardDefaults.cardColors(containerColor = CardBackground),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Column {
-                DeviceItem(Icons.Outlined.Person, "Alex", "Direct Connection", "Strong", StatusActive)
-                HorizontalDivider(color = DividerColor, thickness = 1.dp)
-                DeviceItem(Icons.Outlined.Group, "Rescue Team", "2 hops • via Device-7A42", "Stable", StatusStable)
-                HorizontalDivider(color = DividerColor, thickness = 1.dp)
-                DeviceItem(Icons.Outlined.Router, "Device-7A42", "Relay • Direct", "Strong", StatusActive)
+            if (peers.isEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.WifiTethering,
+                        contentDescription = null,
+                        tint = TextSecondary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Scanning for nearby devices...",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "No ZeroGrid peers currently in direct range",
+                        color = TextSecondary.copy(alpha = 0.7f),
+                        fontSize = 11.sp
+                    )
+                }
+            } else {
+                Column {
+                    peers.take(3).forEachIndexed { index, peer ->
+                        val statusText = if (peer.isDirectNeighbor) "Direct Connection" else "${peer.hopDistance} hops • via Mesh"
+                        val strengthText = if (peer.rssi > -60) "Strong" else if (peer.rssi > -80) "Stable" else "Weak"
+                        val strengthColor = if (peer.rssi > -60) StatusActive else if (peer.rssi > -80) StatusStable else AlertPink
+
+                        DeviceItem(
+                            icon = if (peer.isDirectNeighbor) Icons.Outlined.Person else Icons.Outlined.Router,
+                            name = peer.alias.ifEmpty { peer.nodeId },
+                            status = statusText,
+                            strength = strengthText,
+                            strengthColor = strengthColor
+                        )
+                        if (index < peers.take(3).size - 1) {
+                            HorizontalDivider(color = DividerColor, thickness = 1.dp)
+                        }
+                    }
+                }
             }
         }
     }
@@ -350,8 +430,6 @@ private fun SOSFab(onNavigate: (Screen) -> Unit) {
     }
 }
 
-
-
 @Composable
 fun ZeroGridDashboardScreen() = MeshDashboardScreen()
 
@@ -361,4 +439,4 @@ fun ZeroGridDashboardPreview() {
     ZeroGridTheme {
         ZeroGridDashboardScreen()
     }
-}
+}

@@ -17,17 +17,30 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.mesh.engine.MeshEngine
+import com.example.zerogrid.mesh.engine.MeshPacket
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun SosCenterScreen(onNavigate: (Screen) -> Unit = {}) {
+    val context = LocalContext.current
+    val meshEngine = remember { MeshEngine.getInstance(context) }
+    val connectedPeers by meshEngine.connectedPeers.collectAsState()
+    val isMeshActive by meshEngine.isMeshActive.collectAsState()
+    val sosAlerts by meshEngine.sosAlerts.collectAsState()
+    val acknowledgedIds by meshEngine.acknowledgedAlertIds.collectAsState()
+
     Scaffold(
         containerColor = DarkBackground,
         topBar = { EmergencyTopBar(onBackClick = { onNavigate(Screen.HOME) }) },
@@ -41,7 +54,7 @@ fun SosCenterScreen(onNavigate: (Screen) -> Unit = {}) {
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(modifier = Modifier.height(12.dp))
-            MeshStatusBanner()
+            MeshStatusBanner(peersCount = connectedPeers.size, isMeshActive = isMeshActive)
             Spacer(modifier = Modifier.height(16.dp))
 
             // Emergency SOS Action Card
@@ -57,7 +70,11 @@ fun SosCenterScreen(onNavigate: (Screen) -> Unit = {}) {
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(10.dp))
-            ActiveAlertsSection()
+            ActiveAlertsSection(
+                alerts = sosAlerts,
+                acknowledgedIds = acknowledgedIds,
+                onAcknowledge = { meshEngine.acknowledgeSosAlert(it) }
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -70,20 +87,16 @@ fun SosCenterScreen(onNavigate: (Screen) -> Unit = {}) {
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(10.dp))
-            NetworkReachSection()
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Recent Activity Section
-            Text(
-                text = "RECENT ACTIVITY",
-                color = TextSecondary,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
+            NetworkReachSection(
+                peersCount = connectedPeers.size,
+                maxHops = if (connectedPeers.isEmpty()) 0 else (connectedPeers.maxOfOrNull { it.hopDistance } ?: 1),
+                isMeshActive = isMeshActive,
+                lastBroadcast = if (sosAlerts.isNotEmpty()) {
+                    SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date(sosAlerts.first().timestamp))
+                } else {
+                    "--"
+                }
             )
-            Spacer(modifier = Modifier.height(10.dp))
-            RecentActivitySection()
 
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -95,38 +108,15 @@ fun SosCenterScreen(onNavigate: (Screen) -> Unit = {}) {
                 QuickActionButton(
                     modifier = Modifier.weight(1f),
                     icon = Icons.Outlined.Campaign,
-                    title = "Broadcast\nSOS"
+                    title = "Broadcast\nSOS",
+                    onClick = { onNavigate(Screen.SEND_SOS) }
                 )
                 QuickActionButton(
                     modifier = Modifier.weight(1f),
-                    icon = Icons.Outlined.RssFeed,
-                    title = "View SOS\nFeed"
+                    icon = Icons.Outlined.ChatBubbleOutline,
+                    title = "Open\nChat",
+                    onClick = { onNavigate(Screen.CHAT_DETAIL) }
                 )
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Emergency Contacts Button
-            Button(
-                onClick = { },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = CardBackground),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, DividerColor)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = Icons.Outlined.ContactEmergency, contentDescription = null, tint = StatusActive, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Emergency Contacts",
-                        color = TextPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
@@ -166,29 +156,23 @@ private fun EmergencyTopBar(onBackClick: () -> Unit = {}) {
                     fontWeight = FontWeight.Bold
                 )
             }
-            Icon(
-                imageVector = Icons.Outlined.History,
-                contentDescription = "History",
-                tint = StatusActive,
-                modifier = Modifier.size(24.dp)
-            )
         }
         HorizontalDivider(color = DividerColor, thickness = 1.dp)
     }
 }
 
 @Composable
-private fun MeshStatusBanner() {
+private fun MeshStatusBanner(peersCount: Int, isMeshActive: Boolean) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Start
     ) {
-        Box(modifier = Modifier.size(6.dp).background(StatusActive, CircleShape))
+        Box(modifier = Modifier.size(6.dp).background(if (isMeshActive) StatusActive else TextSecondary, CircleShape))
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "ZeroGrid Mesh Active",
-            color = StatusActive,
+            text = if (isMeshActive) "ZeroGrid Mesh Active" else "Mesh Offline",
+            color = if (isMeshActive) StatusActive else TextSecondary,
             fontSize = 12.sp,
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Bold
@@ -197,7 +181,7 @@ private fun MeshStatusBanner() {
         Icon(imageVector = Icons.Outlined.Hub, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(14.dp))
         Spacer(modifier = Modifier.width(6.dp))
         Text(
-            text = "12 devices reachable",
+            text = "$peersCount devices reachable",
             color = TextSecondary,
             fontSize = 12.sp,
             fontFamily = FontFamily.Monospace
@@ -276,161 +260,129 @@ private fun EmergencySosCard(onSendSosClick: () -> Unit = {}) {
 }
 
 @Composable
-private fun ActiveAlertsSection() {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Alert 1: Medical Emergency
+private fun ActiveAlertsSection(
+    alerts: List<MeshPacket>,
+    acknowledgedIds: Set<String>,
+    onAcknowledge: (String) -> Unit
+) {
+    if (alerts.isEmpty()) {
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = CardBackground),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(6.dp).background(AlertPink, CircleShape))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Medical Emergency",
-                            color = TextPrimary,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Text(
-                        text = "ACTIVE",
-                        color = AlertPink,
-                        fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .background(Color(0xFF3B1A1E), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 6.dp, vertical = 3.dp)
-                    )
-                }
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.CheckCircle,
+                    contentDescription = null,
+                    tint = StatusActive,
+                    modifier = Modifier.size(32.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "No active SOS alerts",
+                    color = TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Rescue Team  •  2 hops away",
+                    text = "All mesh nodes operating normally. No emergency broadcasts in range.",
                     color = TextSecondary,
                     fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "Medical assistance required at community center.",
-                    color = TextPrimary,
-                    fontSize = 13.sp
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "12:41 PM",
-                        color = TextSecondary,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Button(
-                        onClick = { },
-                        modifier = Modifier
-                            .height(32.dp)
-                            .wrapContentWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = SurfaceDarker),
-                        shape = RoundedCornerShape(6.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
-                    ) {
-                        Text(
-                            text = "ACKNOWLEDGE",
-                            color = StatusActive,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-                }
             }
         }
-
-        // Alert 2: Trapped / Assistance
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+    } else {
+        val timeFormatter = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            alerts.forEach { alert ->
+                val isAcked = acknowledgedIds.contains(alert.packetId)
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(1.dp, AlertRedBorder, RoundedCornerShape(12.dp)),
+                    colors = CardDefaults.cardColors(containerColor = CardBackground),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(modifier = Modifier.size(6.dp).background(AlertPink, CircleShape))
-                        Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(modifier = Modifier.size(6.dp).background(AlertPink, CircleShape))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "SOS Beacon",
+                                    color = TextPrimary,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                text = if (isAcked) "ACKNOWLEDGED" else "ACTIVE",
+                                color = if (isAcked) StatusActive else AlertPink,
+                                fontSize = 10.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier
+                                    .background(if (isAcked) Color(0xFF1A3B40) else Color(0xFF3B1A1E), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 6.dp, vertical = 3.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Trapped / Assistance",
-                            color = TextPrimary,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Text(
-                        text = "ACTIVE",
-                        color = AlertPink,
-                        fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier
-                            .background(Color(0xFF3B1A1E), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 6.dp, vertical = 3.dp)
-                    )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Device-7A42  •  3 hops away",
-                    color = TextSecondary,
-                    fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                Text(
-                    text = "People trapped inside building.",
-                    color = TextPrimary,
-                    fontSize = 13.sp
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "12:35 PM",
-                        color = TextSecondary,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Button(
-                        onClick = { },
-                        modifier = Modifier
-                            .height(32.dp)
-                            .wrapContentWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = SurfaceDarker),
-                        shape = RoundedCornerShape(6.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
-                    ) {
-                        Text(
-                            text = "VIEW",
+                            text = "From ${alert.senderId}  •  ${if (alert.hopCount == 0) "Direct" else "${alert.hopCount} hops away"}",
                             color = TextSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp,
                             fontFamily = FontFamily.Monospace
                         )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = alert.payload,
+                            color = TextPrimary,
+                            fontSize = 13.sp
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = timeFormatter.format(Date(alert.timestamp)),
+                                color = TextSecondary,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                            if (!isAcked) {
+                                Button(
+                                    onClick = { onAcknowledge(alert.packetId) },
+                                    modifier = Modifier
+                                        .height(32.dp)
+                                        .wrapContentWidth(),
+                                    colors = ButtonDefaults.buttonColors(containerColor = SurfaceDarker),
+                                    shape = RoundedCornerShape(6.dp),
+                                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 0.dp)
+                                ) {
+                                    Text(
+                                        text = "ACKNOWLEDGE",
+                                        color = StatusActive,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        fontFamily = FontFamily.Monospace
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -439,7 +391,12 @@ private fun ActiveAlertsSection() {
 }
 
 @Composable
-private fun NetworkReachSection() {
+private fun NetworkReachSection(
+    peersCount: Int,
+    maxHops: Int,
+    isMeshActive: Boolean,
+    lastBroadcast: String
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -454,7 +411,7 @@ private fun NetworkReachSection() {
                         Icon(imageVector = Icons.Outlined.Devices, contentDescription = null, tint = StatusActive, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "9",
+                            text = peersCount.toString(),
                             color = StatusActive,
                             fontSize = 24.sp,
                             fontWeight = FontWeight.Bold,
@@ -466,7 +423,7 @@ private fun NetworkReachSection() {
                     Text(text = "Relay hops", color = TextSecondary, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "3",
+                        text = maxHops.toString(),
                         color = TextPrimary,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
@@ -482,9 +439,9 @@ private fun NetworkReachSection() {
                     Text(text = "Delivery status", color = TextSecondary, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "94%",
-                        color = StatusActive,
-                        fontSize = 24.sp,
+                        text = if (isMeshActive) "ACTIVE" else "OFFLINE",
+                        color = if (isMeshActive) StatusActive else TextSecondary,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace
                     )
@@ -493,9 +450,9 @@ private fun NetworkReachSection() {
                     Text(text = "Last broadcast", color = TextSecondary, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "12:41 PM",
+                        text = lastBroadcast,
                         color = TextPrimary,
-                        fontSize = 20.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace
                     )
@@ -506,64 +463,9 @@ private fun NetworkReachSection() {
 }
 
 @Composable
-private fun RecentActivitySection() {
+private fun QuickActionButton(modifier: Modifier = Modifier, icon: ImageVector, title: String, onClick: () -> Unit) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            RecentActivityItem(
-                icon = Icons.Outlined.CheckCircle,
-                iconTint = StatusActive,
-                title = "SOS broadcast delivered (Reached 9 devices)",
-                time = "12:28 PM"
-            )
-            RecentActivityItem(
-                icon = Icons.Outlined.Shield,
-                iconTint = StatusActive,
-                title = "SOS acknowledged by Rescue Team",
-                time = "12:24 PM"
-            )
-            RecentActivityItem(
-                icon = Icons.Outlined.DoNotDisturbAlt,
-                iconTint = TextSecondary,
-                title = "Emergency alert expired",
-                time = "11:52 AM"
-            )
-        }
-    }
-}
-
-@Composable
-private fun RecentActivityItem(icon: ImageVector, iconTint: Color, title: String, time: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(32.dp)
-                .background(SurfaceDarker, CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(imageVector = icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(16.dp))
-        }
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, color = TextPrimary, fontSize = 13.sp)
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(text = time, color = TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-        }
-    }
-}
-
-@Composable
-private fun QuickActionButton(modifier: Modifier = Modifier, icon: ImageVector, title: String) {
-    Card(
+        onClick = onClick,
         modifier = modifier.height(80.dp),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
         shape = RoundedCornerShape(12.dp),
@@ -623,8 +525,6 @@ private fun HowSosWorksCard() {
     }
 }
 
-
-
 @Composable
 fun ZeroGridEmergencyCenterScreen() = SosCenterScreen()
 
@@ -634,4 +534,4 @@ fun ZeroGridEmergencyCenterPreview() {
     ZeroGridTheme {
         ZeroGridEmergencyCenterScreen()
     }
-}
+}

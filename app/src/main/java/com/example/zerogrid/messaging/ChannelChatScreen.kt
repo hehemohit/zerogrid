@@ -2,10 +2,11 @@ package com.example.zerogrid.messaging
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -15,92 +16,146 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.mesh.engine.MeshEngine
+import com.example.zerogrid.mesh.engine.MeshPacket
+import com.example.zerogrid.mesh.engine.PacketType
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.ui.theme.*
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun ChatDetailScreen(onNavigate: (Screen) -> Unit = {}) {
+    val context = LocalContext.current
+    val meshEngine = remember { MeshEngine.getInstance(context) }
+    val connectedPeers by meshEngine.connectedPeers.collectAsState()
+    val isMeshActive by meshEngine.isMeshActive.collectAsState()
+    val allMessages by meshEngine.receivedMessages.collectAsState()
+    val localNodeId = meshEngine.localNodeId
+
     var messageText by remember { mutableStateOf("") }
+    val channelMessages = remember(allMessages) {
+        allMessages.filter { it.type == PacketType.CHANNEL_BROADCAST || it.recipientId == MeshPacket.BROADCAST_ADDRESS }
+    }
+
+    val listState = rememberLazyListState()
+    val coroutineScope = rememberCoroutineScope()
+
+    val timeFormatter = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
 
     Scaffold(
         containerColor = DarkBackground,
-        topBar = { ChatDetailTopBar(onBackClick = { onNavigate(Screen.MESSAGES) }) },
-        bottomBar = { ChatBottomBar(messageText = messageText, onValueChange = { messageText = it }) }
+        topBar = {
+            ChatDetailTopBar(
+                channelName = "#mesh",
+                peersCount = connectedPeers.size,
+                isMeshActive = isMeshActive,
+                onBackClick = { onNavigate(Screen.MESSAGES) }
+            )
+        },
+        bottomBar = {
+            ChatBottomBar(
+                messageText = messageText,
+                onValueChange = { messageText = it },
+                onSend = {
+                    if (messageText.isNotBlank()) {
+                        meshEngine.broadcastChannelMessage("mesh", messageText.trim())
+                        messageText = ""
+                        coroutineScope.launch {
+                            if (channelMessages.isNotEmpty()) {
+                                listState.animateScrollToItem(channelMessages.size)
+                            }
+                        }
+                    }
+                }
+            )
+        }
     ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Spacer(modifier = Modifier.height(16.dp))
+        if (channelMessages.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .background(SurfaceDarker, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(imageVector = Icons.Outlined.ChatBubbleOutline, contentDescription = null, tint = StatusActive, modifier = Modifier.size(28.dp))
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "No messages in #mesh yet",
+                        color = TextPrimary,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Send a message to broadcast to all reachable ZeroGrid mesh devices in range.",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                    )
+                }
+            }
+        } else {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(vertical = 16.dp)
+            ) {
+                items(channelMessages, key = { it.packetId }) { packet ->
+                    val isMe = packet.senderId == localNodeId
+                    val timeStr = timeFormatter.format(Date(packet.timestamp))
 
-            // Message 1: Alex
-            OtherMessageItem(
-                initial = "A",
-                name = "Alex",
-                time = "10:42 AM",
-                message = "Coordinates confirmed for Sector 4. Proceeding with caution.",
-                badgeText = "Direct",
-                badgeIcon = Icons.Outlined.Check,
-                badgeColor = StatusActive
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Message 2: Rescue Team
-            OtherMessageItem(
-                initial = "RT",
-                name = "Rescue Team",
-                time = "10:45 AM",
-                message = "Copy that. ETA 15 mikes. Ensure LZ is clear.",
-                badgeText = "2 hops   ↗ Routed through 2 peers",
-                badgeColor = StatusActive,
-                isCustomBadge = true
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // System Notification Chip
-            SystemNotificationBadge(text = "Device-7A42 joined #mesh")
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Message 3: Device-7A42
-            OtherMessageItem(
-                icon = Icons.Outlined.Router,
-                name = "Device-7A42",
-                time = "10:47 AM",
-                message = "[AUTOMATED] Signal strength optimal. Establishing relay link.",
-                badgeText = "Relay  •  1 hop",
-                badgeColor = StatusActive
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Message 4: You (CurrentUser)
-            MyMessageItem(
-                time = "10:50 AM",
-                message = "LZ is secure. Standing by for visual.",
-                statusText = "Delivered ✓"
-            )
-
-            Spacer(modifier = Modifier.height(32.dp))
+                    if (isMe) {
+                        MyMessageItem(
+                            time = timeStr,
+                            message = packet.payload.removePrefix("[mesh] ").removePrefix("[#mesh] "),
+                            statusText = "Broadcast ✓"
+                        )
+                    } else {
+                        OtherMessageItem(
+                            initial = packet.senderId.takeLast(2).uppercase(),
+                            name = packet.senderId,
+                            time = timeStr,
+                            message = packet.payload.removePrefix("[mesh] ").removePrefix("[#mesh] "),
+                            badgeText = if (packet.hopCount == 0) "Direct" else "${packet.hopCount} hops",
+                            badgeColor = StatusActive,
+                            badgeIcon = Icons.Outlined.Check
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun ChatDetailTopBar(onBackClick: () -> Unit = {}) {
+private fun ChatDetailTopBar(
+    channelName: String,
+    peersCount: Int,
+    isMeshActive: Boolean,
+    onBackClick: () -> Unit = {}
+) {
     Column {
         Row(
             modifier = Modifier
@@ -136,7 +191,7 @@ private fun ChatDetailTopBar(onBackClick: () -> Unit = {}) {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "#mesh",
+                            text = channelName,
                             color = TextPrimary,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
@@ -152,27 +207,12 @@ private fun ChatDetailTopBar(onBackClick: () -> Unit = {}) {
                     }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "18 participants • Mesh Active",
+                        text = "$peersCount reachable • ${if (isMeshActive) "Mesh Active" else "Mesh Offline"}",
                         color = TextSecondary,
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace
                     )
                 }
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Outlined.Search,
-                    contentDescription = "Search",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(20.dp))
-                Icon(
-                    imageVector = Icons.Outlined.Info,
-                    contentDescription = "Info",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
-                )
             }
         }
         HorizontalDivider(color = DividerColor, thickness = 1.dp)
@@ -182,14 +222,12 @@ private fun ChatDetailTopBar(onBackClick: () -> Unit = {}) {
 @Composable
 private fun OtherMessageItem(
     initial: String? = null,
-    icon: ImageVector? = null,
     name: String,
     time: String,
     message: String,
     badgeText: String,
     badgeColor: Color,
-    badgeIcon: ImageVector? = null,
-    isCustomBadge: Boolean = false
+    badgeIcon: ImageVector? = null
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -204,9 +242,7 @@ private fun OtherMessageItem(
                         .background(SurfaceDarker, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (icon != null) {
-                        Icon(imageVector = icon, contentDescription = null, tint = StatusActive, modifier = Modifier.size(16.dp))
-                    } else if (initial != null) {
+                    if (initial != null) {
                         Text(text = initial, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                 }
@@ -251,14 +287,6 @@ private fun OtherMessageItem(
                         Icon(imageVector = badgeIcon, contentDescription = null, tint = badgeColor, modifier = Modifier.size(12.dp))
                         Spacer(modifier = Modifier.width(4.dp))
                     }
-                    if (isCustomBadge) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .background(StatusActive, RoundedCornerShape(2.dp))
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                    }
                     Text(
                         text = badgeText,
                         color = badgeColor,
@@ -268,31 +296,6 @@ private fun OtherMessageItem(
                     )
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun SystemNotificationBadge(text: String) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Surface(
-            color = SurfaceDarker,
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.wrapContentWidth()
-        ) {
-            Text(
-                text = text,
-                color = TextSecondary,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                textAlign = TextAlign.Center
-            )
         }
     }
 }
@@ -365,7 +368,11 @@ private fun MyMessageItem(
 }
 
 @Composable
-private fun ChatBottomBar(messageText: String, onValueChange: (String) -> Unit) {
+private fun ChatBottomBar(
+    messageText: String,
+    onValueChange: (String) -> Unit,
+    onSend: () -> Unit
+) {
     Column {
         HorizontalDivider(color = DividerColor, thickness = 1.dp)
         Column(
@@ -380,18 +387,10 @@ private fun ChatBottomBar(messageText: String, onValueChange: (String) -> Unit) 
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                IconButton(
-                    onClick = { },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(SurfaceDarker, CircleShape)
-                ) {
-                    Icon(imageVector = Icons.Outlined.Add, contentDescription = "Add Attachment", tint = StatusActive)
-                }
                 OutlinedTextField(
                     value = messageText,
                     onValueChange = onValueChange,
-                    placeholder = { Text("Message #mesh...", color = TextSecondary, fontSize = 14.sp) },
+                    placeholder = { Text("Broadcast to #mesh...", color = TextSecondary, fontSize = 14.sp) },
                     modifier = Modifier
                         .weight(1f)
                         .height(50.dp),
@@ -408,7 +407,7 @@ private fun ChatBottomBar(messageText: String, onValueChange: (String) -> Unit) 
                     singleLine = true
                 )
                 Button(
-                    onClick = { },
+                    onClick = onSend,
                     modifier = Modifier.size(48.dp),
                     shape = CircleShape,
                     colors = ButtonDefaults.buttonColors(containerColor = StatusActive),
@@ -423,49 +422,14 @@ private fun ChatBottomBar(messageText: String, onValueChange: (String) -> Unit) 
                 horizontalArrangement = Arrangement.Center
             ) {
                 Icon(imageVector = Icons.Outlined.Lock, contentDescription = null, tint = StatusActive, modifier = Modifier.size(12.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Icon(imageVector = Icons.Outlined.Lock, contentDescription = null, tint = StatusActive, modifier = Modifier.size(12.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "End-to-end encrypted",
+                    text = "ZeroGrid Mesh Broadcast",
                     color = TextSecondary,
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace
                 )
             }
-        }
-        DashboardBottomNavChatActive()
-    }
-}
-
-@Composable
-private fun DashboardBottomNavChatActive() {
-    NavigationBar(
-        containerColor = BottomNavBg,
-        contentColor = TextSecondary,
-        tonalElevation = 0.dp
-    ) {
-        val items = listOf(
-            Triple("Home", Icons.Outlined.Home, false),
-            Triple("Messages", Icons.Outlined.ChatBubbleOutline, true),
-            Triple("Mesh", Icons.Outlined.Share, false),
-            Triple("Files", Icons.Outlined.Folder, false),
-            Triple("Settings", Icons.Outlined.Settings, false)
-        )
-        items.forEach { (label, icon, selected) ->
-            NavigationBarItem(
-                selected = selected,
-                onClick = { },
-                icon = { Icon(imageVector = icon, contentDescription = label) },
-                label = { Text(text = label, fontFamily = FontFamily.Monospace, fontSize = 10.sp) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color.Black,
-                    unselectedIconColor = TextSecondary,
-                    selectedTextColor = TextSecondary,
-                    unselectedTextColor = TextSecondary,
-                    indicatorColor = StatusActive
-                )
-            )
         }
     }
 }
@@ -479,4 +443,4 @@ fun ZeroGridChatDetailPreview() {
     ZeroGridTheme {
         ZeroGridChatDetailScreen()
     }
-}
+}

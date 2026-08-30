@@ -1,7 +1,9 @@
 package com.example.zerogrid.settings
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -12,24 +14,28 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.mesh.engine.MeshEngine
 import com.example.zerogrid.navigation.Screen
-import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
 fun SecurityPrivacyScreen(onNavigate: (Screen) -> Unit = {}) {
-    var e2eEncryptionEnabled by remember { mutableStateOf(true) }
-    var anonymousRoutingEnabled by remember { mutableStateOf(true) }
-    var metadataObfuscation by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val meshEngine = remember { MeshEngine.getInstance(context) }
+    val fingerprint = remember { meshEngine.getPublicKeyFingerprint() }
+    val localNodeId = meshEngine.localNodeId
+
+    var strictVerificationEnabled by remember { mutableStateOf(true) }
+    var anonymizeNodeId by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = DarkBackground,
-        topBar = { SecurityPrivacyTopBar(onBackClick = { onNavigate(Screen.SETTINGS) }) },
-        bottomBar = { ZeroGridBottomBar(currentScreen = Screen.SETTINGS, onNavigate = onNavigate) }
+        topBar = { SecurityTopBar(onBackClick = { onNavigate(Screen.SETTINGS) }) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -40,59 +46,56 @@ fun SecurityPrivacyScreen(onNavigate: (Screen) -> Unit = {}) {
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            Text(
-                text = "ENCRYPTION & KEYS",
-                color = TextSecondary,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-
-            SecurityToggleCard(
-                title = "End-to-End Encryption",
-                subtitle = "Encrypt all 1-to-1 payload messages using Ed25519/X25519 keys",
-                checked = e2eEncryptionEnabled,
-                onCheckedChange = { e2eEncryptionEnabled = it }
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
+            // Encryption Key Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = CardBackground),
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(16.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Public Key Fingerprint",
-                        color = TextPrimary,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "8F3A - 9C12 - B4E5 - 77D1 - 09AA - 33FE",
-                        color = StatusActive,
-                        fontSize = 13.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedButton(
-                        onClick = { /* Export Key / QR */ },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusActive)
-                    ) {
-                        Icon(imageVector = Icons.Outlined.QrCode, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Export Key / Show QR", fontSize = 12.sp)
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(40.dp)
+                                .background(SurfaceDarker, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(imageVector = Icons.Outlined.Key, contentDescription = null, tint = StatusActive, modifier = Modifier.size(20.dp))
+                        }
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(text = "Identity Key Pair", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Text(text = "Ed25519 Cryptographic Identity", color = StatusActive, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                        }
                     }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    HorizontalDivider(color = DividerColor, thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(text = "LOCAL NODE ID", color = TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(text = localNodeId, color = TextPrimary, fontSize = 14.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Medium)
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(text = "PUBLIC KEY FINGERPRINT", color = TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(text = fingerprint, color = StatusActive, fontSize = 14.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Your fingerprint is automatically exchanged during discovery to verify end-to-end encrypted packet authenticity.",
+                        color = TextSecondary,
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp
+                    )
                 }
             }
 
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "ANONYMITY & ROUTING",
+                text = "SECURITY POLICIES",
                 color = TextSecondary,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
@@ -101,60 +104,23 @@ fun SecurityPrivacyScreen(onNavigate: (Screen) -> Unit = {}) {
             Spacer(modifier = Modifier.height(10.dp))
 
             SecurityToggleCard(
-                title = "Anonymous Multi-Hop Routing",
-                subtitle = "Strip immediate sender address during packet forwarding",
-                checked = anonymousRoutingEnabled,
-                onCheckedChange = { anonymousRoutingEnabled = it }
+                title = "Strict Peer Authentication",
+                subtitle = "Require cryptographic signature match on all direct mesh connections",
+                checked = strictVerificationEnabled,
+                onCheckedChange = { strictVerificationEnabled = it }
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             SecurityToggleCard(
-                title = "Metadata Obfuscation",
-                subtitle = "Pad packet length to mask payload signatures",
-                checked = metadataObfuscation,
-                onCheckedChange = { metadataObfuscation = it }
+                title = "Ephemeral Node Identifier",
+                subtitle = "Rotate broadcast ID periodically to prevent physical tracking across mesh sectors",
+                checked = anonymizeNodeId,
+                onCheckedChange = { anonymizeNodeId = it }
             )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = { /* Reset Identity */ },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B1A1E), contentColor = AlertPink),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(imageVector = Icons.Outlined.DeleteForever, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "Reset Identity & Re-generate Keys", fontWeight = FontWeight.Bold)
-            }
 
             Spacer(modifier = Modifier.height(32.dp))
         }
-    }
-}
-
-@Composable
-private fun SecurityPrivacyTopBar(onBackClick: () -> Unit) {
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBackClick) {
-                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextPrimary)
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "Security & Privacy",
-                color = TextPrimary,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-        HorizontalDivider(color = DividerColor, thickness = 1.dp)
     }
 }
 
@@ -174,12 +140,12 @@ private fun SecurityToggleCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
                 Text(text = subtitle, color = TextSecondary, fontSize = 12.sp)
             }
             Spacer(modifier = Modifier.width(12.dp))
@@ -194,5 +160,29 @@ private fun SecurityToggleCard(
                 )
             )
         }
+    }
+}
+
+@Composable
+private fun SecurityTopBar(onBackClick: () -> Unit) {
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBackClick) {
+                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Security & Encryption",
+                color = StatusActive,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        HorizontalDivider(color = DividerColor, thickness = 1.dp)
     }
 }

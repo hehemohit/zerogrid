@@ -16,17 +16,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.mesh.engine.MeshEngine
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
 fun ChannelsScreen(onNavigate: (Screen) -> Unit = {}) {
+    val context = LocalContext.current
+    val meshEngine = remember { MeshEngine.getInstance(context) }
+    val connectedPeers by meshEngine.connectedPeers.collectAsState()
+    val isMeshActive by meshEngine.isMeshActive.collectAsState()
+    val sosAlerts by meshEngine.sosAlerts.collectAsState()
+
     var selectedFilter by remember { mutableStateOf("All") }
 
     Scaffold(
@@ -42,42 +50,42 @@ fun ChannelsScreen(onNavigate: (Screen) -> Unit = {}) {
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-            MeshActiveStatusBarChannels()
+            MeshActiveStatusBarChannels(peersCount = connectedPeers.size, isMeshActive = isMeshActive)
             Spacer(modifier = Modifier.height(16.dp))
             ChannelFilterChipsRow(selected = selectedFilter, onSelected = { selectedFilter = it })
             Spacer(modifier = Modifier.height(20.dp))
 
-            Text(
-                text = "EMERGENCY",
-                color = TextSecondary,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            EmergencyChannelSection()
+            if (selectedFilter == "All" || selectedFilter == "Emergency") {
+                Text(
+                    text = "EMERGENCY",
+                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                EmergencyChannelSection(
+                    sosAlertsCount = sosAlerts.size,
+                    onClick = { onNavigate(Screen.SOS_CENTER) }
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+            }
 
-            Spacer(modifier = Modifier.height(20.dp))
-            Text(
-                text = "PUBLIC",
-                color = TextSecondary,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            PublicChannelsSection()
-
-            Spacer(modifier = Modifier.height(20.dp))
-            Text(
-                text = "PRIVATE",
-                color = TextSecondary,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            PrivateChannelsSection()
+            if (selectedFilter == "All" || selectedFilter == "Public") {
+                Text(
+                    text = "PUBLIC",
+                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                PublicChannelsSection(
+                    peersCount = connectedPeers.size,
+                    onChannelClick = { onNavigate(Screen.CHAT_DETAIL) }
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
             Box(
@@ -123,44 +131,29 @@ private fun ChannelsTopBar(onBackClick: () -> Unit = {}) {
                     fontWeight = FontWeight.Bold
                 )
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Outlined.Search,
-                    contentDescription = "Search",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(20.dp))
-                Icon(
-                    imageVector = Icons.Outlined.Add,
-                    contentDescription = "Add",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
         }
         HorizontalDivider(color = DividerColor, thickness = 1.dp)
     }
 }
 
 @Composable
-private fun MeshActiveStatusBarChannels() {
+private fun MeshActiveStatusBarChannels(peersCount: Int, isMeshActive: Boolean) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Start
     ) {
-        Box(modifier = Modifier.size(6.dp).background(StatusActive, CircleShape))
+        Box(modifier = Modifier.size(6.dp).background(if (isMeshActive) StatusActive else TextSecondary, CircleShape))
         Spacer(modifier = Modifier.width(8.dp))
         Text(
-            text = "Mesh Active",
-            color = StatusActive,
+            text = if (isMeshActive) "Mesh Active" else "Mesh Offline",
+            color = if (isMeshActive) StatusActive else TextSecondary,
             fontSize = 13.sp,
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Bold
         )
         Text(
-            text = "  |  18 devices reachable",
+            text = "  |  $peersCount devices reachable",
             color = TextSecondary,
             fontSize = 13.sp,
             fontFamily = FontFamily.Monospace
@@ -170,7 +163,7 @@ private fun MeshActiveStatusBarChannels() {
 
 @Composable
 private fun ChannelFilterChipsRow(selected: String, onSelected: (String) -> Unit) {
-    val filters = listOf("All", "Public", "Private", "Emergency")
+    val filters = listOf("All", "Public", "Emergency")
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -200,11 +193,15 @@ private fun ChannelFilterChipsRow(selected: String, onSelected: (String) -> Unit
 }
 
 @Composable
-private fun EmergencyChannelSection() {
+private fun EmergencyChannelSection(
+    sosAlertsCount: Int,
+    onClick: () -> Unit
+) {
     Card(
+        onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .border(1.dp, AlertRedBorder, RoundedCornerShape(16.dp)),
+            .border(1.dp, if (sosAlertsCount > 0) AlertRedBorder else DividerColor, RoundedCornerShape(16.dp)),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
         shape = RoundedCornerShape(16.dp)
     ) {
@@ -241,14 +238,14 @@ private fun EmergencyChannelSection() {
                 )
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Text(text = "Emergency broadcasts", color = TextSecondary, fontSize = 14.sp)
+            Text(text = "Emergency broadcasts across local mesh", color = TextSecondary, fontSize = 14.sp)
             Spacer(modifier = Modifier.height(16.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(6.dp).background(AlertPink, CircleShape))
+                Box(modifier = Modifier.size(6.dp).background(if (sosAlertsCount > 0) AlertPink else StatusActive, CircleShape))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "3 active alerts",
-                    color = AlertPink,
+                    text = "$sosAlertsCount active alerts",
+                    color = if (sosAlertsCount > 0) AlertPink else StatusActive,
                     fontSize = 13.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Medium
@@ -259,17 +256,38 @@ private fun EmergencyChannelSection() {
 }
 
 @Composable
-private fun PublicChannelsSection() {
+private fun PublicChannelsSection(
+    peersCount: Int,
+    onChannelClick: () -> Unit
+) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        PublicChannelCard(name = "#mesh", desc = "General mesh communication", participants = "18 participants", icon = Icons.Outlined.Share)
-        PublicChannelCard(name = "#community", desc = "Local community updates", participants = "11 participants", icon = null)
-        PublicChannelCard(name = "#rescue", desc = "Rescue coordination", participants = "7 participants", lastActivity = "Last activity 2 min ago", icon = null)
+        PublicChannelCard(
+            name = "#mesh",
+            desc = "General mesh broadcast and open chat",
+            participants = "$peersCount participants",
+            icon = Icons.Outlined.Share,
+            onClick = onChannelClick
+        )
+        PublicChannelCard(
+            name = "#community",
+            desc = "Local off-grid neighborhood announcements",
+            participants = "$peersCount participants",
+            icon = null,
+            onClick = onChannelClick
+        )
     }
 }
 
 @Composable
-private fun PublicChannelCard(name: String, desc: String, participants: String, lastActivity: String? = null, icon: ImageVector?) {
+private fun PublicChannelCard(
+    name: String,
+    desc: String,
+    participants: String,
+    icon: ImageVector?,
+    onClick: () -> Unit
+) {
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
         shape = RoundedCornerShape(12.dp)
@@ -316,80 +334,10 @@ private fun PublicChannelCard(name: String, desc: String, participants: String, 
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(text = participants, color = TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                 }
-                if (lastActivity != null) {
-                    Text(text = lastActivity, color = StatusActive, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                }
             }
         }
     }
 }
-
-@Composable
-private fun PrivateChannelsSection() {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        PrivateChannelCard(name = "#medical-team", desc = "Restricted channel", participants = "5 participants")
-        PrivateChannelCard(name = "#volunteers", desc = "Restricted channel", participants = "9 participants")
-    }
-}
-
-@Composable
-private fun PrivateChannelCard(name: String, desc: String, participants: String) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = name,
-                        color = TextPrimary,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Icon(imageVector = Icons.Outlined.Lock, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(14.dp))
-                }
-                Text(
-                    text = "Restricted",
-                    color = TextSecondary,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                    modifier = Modifier
-                        .background(SurfaceDarker, RoundedCornerShape(6.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = desc, color = TextSecondary, fontSize = 13.sp)
-            Spacer(modifier = Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = Icons.Outlined.Group, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(14.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(text = participants, color = TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = Icons.Outlined.Key, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(12.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "Password protected", color = TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                }
-            }
-        }
-    }
-}
-
-
 
 @Composable
 fun ZeroGridChannelsScreen() = ChannelsScreen()
@@ -400,4 +348,4 @@ fun ZeroGridChannelsPreview() {
     ZeroGridTheme {
         ZeroGridChannelsScreen()
     }
-}
+}

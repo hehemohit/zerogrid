@@ -1,7 +1,6 @@
 package com.example.zerogrid.messaging
 
 import androidx.compose.material.icons.automirrored.outlined.Chat
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -16,24 +15,42 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.mesh.engine.MeshEngine
+import com.example.zerogrid.mesh.engine.MeshPacket
+import com.example.zerogrid.mesh.engine.PacketType
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun MessagesScreen(onNavigate: (Screen) -> Unit = {}) {
+    val context = LocalContext.current
+    val meshEngine = remember { MeshEngine.getInstance(context) }
+    val connectedPeers by meshEngine.connectedPeers.collectAsState()
+    val isMeshActive by meshEngine.isMeshActive.collectAsState()
+    val receivedMessages by meshEngine.receivedMessages.collectAsState()
+    val sosAlerts by meshEngine.sosAlerts.collectAsState()
+
     var selectedFilter by remember { mutableStateOf("All") }
+
+    val directMessages = remember(receivedMessages) {
+        receivedMessages.filter { it.type == PacketType.DIRECT_MESSAGE }
+    }
 
     Scaffold(
         containerColor = DarkBackground,
         topBar = { MessagesTopBar() },
         bottomBar = { ZeroGridBottomBar(currentScreen = Screen.MESSAGES, onNavigate = onNavigate) },
-        floatingActionButton = { NewMessageFab() }
+        floatingActionButton = { NewMessageFab(onClick = { onNavigate(Screen.CHAT_DETAIL) }) }
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -43,33 +60,43 @@ fun MessagesScreen(onNavigate: (Screen) -> Unit = {}) {
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-            MeshActiveStatusBar()
+            MeshActiveStatusBar(peersCount = connectedPeers.size, isMeshActive = isMeshActive)
             Spacer(modifier = Modifier.height(16.dp))
             MessageFilterChipsRow(selected = selectedFilter, onSelected = { selectedFilter = it })
             Spacer(modifier = Modifier.height(20.dp))
 
-            Text(
-                text = "CHANNELS",
-                color = TextSecondary,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            ChannelsSection()
+            if (selectedFilter == "All" || selectedFilter == "Channels") {
+                Text(
+                    text = "CHANNELS",
+                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                ChannelsSection(
+                    peersCount = connectedPeers.size,
+                    sosAlertsCount = sosAlerts.size,
+                    onNavigate = onNavigate
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+            }
 
-            Spacer(modifier = Modifier.height(24.dp))
-            Text(
-                text = "DIRECT MESSAGES",
-                color = TextSecondary,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            DirectMessagesSection()
-
-            Spacer(modifier = Modifier.height(32.dp))
+            if (selectedFilter == "All" || selectedFilter == "Private") {
+                Text(
+                    text = "DIRECT MESSAGES",
+                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                DirectMessagesSection(
+                    directMessages = directMessages,
+                    onNavigate = onNavigate
+                )
+                Spacer(modifier = Modifier.height(32.dp))
+            }
         }
     }
 }
@@ -106,13 +133,6 @@ private fun MessagesTopBar() {
                     tint = StatusActive,
                     modifier = Modifier.size(24.dp)
                 )
-                Spacer(modifier = Modifier.width(20.dp))
-                Icon(
-                    imageVector = Icons.Outlined.Edit,
-                    contentDescription = "Edit",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
-                )
             }
         }
         HorizontalDivider(color = DividerColor, thickness = 1.dp)
@@ -120,7 +140,7 @@ private fun MessagesTopBar() {
 }
 
 @Composable
-private fun MeshActiveStatusBar() {
+private fun MeshActiveStatusBar(peersCount: Int, isMeshActive: Boolean) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -134,11 +154,11 @@ private fun MeshActiveStatusBar() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(6.dp).background(StatusActive, CircleShape))
+                Box(modifier = Modifier.size(6.dp).background(if (isMeshActive) StatusActive else TextSecondary, CircleShape))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "MESH ACTIVE  •  12 PEERS",
-                    color = StatusActive,
+                    text = if (isMeshActive) "MESH ACTIVE  •  $peersCount PEERS" else "MESH OFFLINE",
+                    color = if (isMeshActive) StatusActive else TextSecondary,
                     fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold
@@ -200,9 +220,14 @@ private fun MessageFilterChipsRow(selected: String, onSelected: (String) -> Unit
 }
 
 @Composable
-private fun ChannelsSection() {
+private fun ChannelsSection(
+    peersCount: Int,
+    sosAlertsCount: Int,
+    onNavigate: (Screen) -> Unit
+) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Card(
+            onClick = { onNavigate(Screen.CHAT_DETAIL) },
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = CardBackground),
             shape = RoundedCornerShape(12.dp)
@@ -230,11 +255,12 @@ private fun ChannelsSection() {
                         Text(text = "General mesh communication", color = TextSecondary, fontSize = 13.sp)
                     }
                 }
-                Text(text = "18 peers", color = TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                Text(text = "$peersCount reachable", color = TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
             }
         }
 
         Card(
+            onClick = { onNavigate(Screen.SOS_CENTER) },
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = CardBackground),
             shape = RoundedCornerShape(12.dp)
@@ -259,21 +285,23 @@ private fun ChannelsSection() {
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(text = "SOS", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Box(modifier = Modifier.size(5.dp).background(AlertPink, CircleShape))
+                            if (sosAlertsCount > 0) {
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Box(modifier = Modifier.size(6.dp).background(AlertPink, CircleShape))
+                            }
                         }
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(text = "Emergency broadcasts", color = TextSecondary, fontSize = 13.sp)
                     }
                 }
                 Text(
-                    text = "3 alerts",
-                    color = AlertPink,
+                    text = "$sosAlertsCount alerts",
+                    color = if (sosAlertsCount > 0) AlertPink else TextSecondary,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace,
                     modifier = Modifier
-                        .background(Color(0xFF3B1A1E), RoundedCornerShape(8.dp))
+                        .background(if (sosAlertsCount > 0) Color(0xFF3B1A1E) else SurfaceDarker, RoundedCornerShape(8.dp))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
@@ -282,36 +310,61 @@ private fun ChannelsSection() {
 }
 
 @Composable
-private fun DirectMessagesSection() {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        DirectMessageCard(
-            icon = Icons.Outlined.MedicalServices,
-            name = "Rescue Team",
-            message = "Evacuation point confirmed...",
-            time = "12:41 PM",
-            badgeCount = "2",
-            subBadge = "2 hops",
-            isSecure = true
-        )
-        DirectMessageCard(
-            icon = null,
-            initial = "A",
-            name = "Alex",
-            message = "Are you at the shelter?",
-            time = "12:37 PM",
-            badgeCount = "1",
-            subBadge = "Direct",
-            isSecure = false
-        )
-        DirectMessageCard(
-            icon = Icons.Outlined.LocalHospital,
-            name = "Emergency Unit",
-            message = "Medical supplies have arrived.",
-            time = "12:29 PM",
-            badgeCount = null,
-            subBadge = "3 hops",
-            isSecure = false
-        )
+private fun DirectMessagesSection(
+    directMessages: List<MeshPacket>,
+    onNavigate: (Screen) -> Unit
+) {
+    if (directMessages.isEmpty()) {
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.ChatBubbleOutline,
+                    contentDescription = null,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(32.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "No direct messages yet",
+                    color = TextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Messages exchanged with nearby mesh peers will show up here.",
+                    color = TextSecondary,
+                    fontSize = 12.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                )
+            }
+        }
+    } else {
+        val timeFormatter = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            directMessages.take(10).forEach { packet ->
+                DirectMessageCard(
+                    icon = null,
+                    initial = packet.senderId.takeLast(2).uppercase(),
+                    name = packet.senderId,
+                    message = packet.payload,
+                    time = timeFormatter.format(Date(packet.timestamp)),
+                    badgeCount = null,
+                    subBadge = if (packet.hopCount == 0) "Direct" else "${packet.hopCount} hops",
+                    isSecure = true,
+                    onClick = { onNavigate(Screen.CHAT_DETAIL) }
+                )
+            }
+        }
     }
 }
 
@@ -324,9 +377,11 @@ private fun DirectMessageCard(
     time: String,
     badgeCount: String?,
     subBadge: String,
-    isSecure: Boolean
+    isSecure: Boolean,
+    onClick: () -> Unit = {}
 ) {
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
         shape = RoundedCornerShape(12.dp)
@@ -351,12 +406,12 @@ private fun DirectMessageCard(
                     if (icon != null) {
                         Icon(imageVector = icon, contentDescription = null, tint = StatusActive, modifier = Modifier.size(22.dp))
                     } else if (initial != null) {
-                        Text(text = initial, color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(text = initial, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
                     }
                     if (isSecure) {
                         Box(
                             modifier = Modifier
-                                .size(12.dp)
+                                .size(10.dp)
                                 .background(StatusActive, CircleShape)
                                 .align(Alignment.BottomEnd)
                         )
@@ -420,9 +475,9 @@ private fun DirectMessageCard(
 }
 
 @Composable
-private fun NewMessageFab() {
+private fun NewMessageFab(onClick: () -> Unit) {
     FloatingActionButton(
-        onClick = { /* New Message */ },
+        onClick = onClick,
         containerColor = StatusActive,
         contentColor = Color.Black,
         shape = CircleShape,
@@ -431,8 +486,6 @@ private fun NewMessageFab() {
         Icon(imageVector = Icons.AutoMirrored.Outlined.Chat, contentDescription = "New Message", modifier = Modifier.size(28.dp))
     }
 }
-
-
 
 @Composable
 fun ZeroGridMessagesScreen() = MessagesScreen()
@@ -443,4 +496,4 @@ fun ZeroGridMessagesPreview() {
     ZeroGridTheme {
         ZeroGridMessagesScreen()
     }
-}
+}

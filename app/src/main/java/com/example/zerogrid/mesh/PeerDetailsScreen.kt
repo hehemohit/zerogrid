@@ -16,17 +16,25 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.mesh.engine.MeshEngine
+import com.example.zerogrid.mesh.engine.MeshNode
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
 fun PeerDetailsScreen(onNavigate: (Screen) -> Unit = {}) {
+    val context = LocalContext.current
+    val meshEngine = remember { MeshEngine.getInstance(context) }
+    val connectedPeers by meshEngine.connectedPeers.collectAsState()
+    val peer = connectedPeers.firstOrNull()
+
     var trustDevice by remember { mutableStateOf(true) }
 
     Scaffold(
@@ -43,21 +51,25 @@ fun PeerDetailsScreen(onNavigate: (Screen) -> Unit = {}) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(20.dp))
-            PeerHeaderSection()
+            PeerHeaderSection(peer = peer)
             Spacer(modifier = Modifier.height(24.dp))
-            ActionButtonsRow()
+            ActionButtonsRow(
+                onMessageClick = { onNavigate(Screen.CHAT_DETAIL) },
+                onSendFileClick = { onNavigate(Screen.SEND_FILE) }
+            )
             Spacer(modifier = Modifier.height(24.dp))
-            ConnectionInfoCard()
+            ConnectionInfoCard(peer = peer)
             Spacer(modifier = Modifier.height(20.dp))
-            RouteToPeerCard()
-            Spacer(modifier = Modifier.height(20.dp))
-            IdentitySecurityCard()
+            IdentitySecurityCard(peer = peer)
             Spacer(modifier = Modifier.height(16.dp))
             TrustDeviceCard(checked = trustDevice, onCheckedChange = { trustDevice = it })
             Spacer(modifier = Modifier.height(16.dp))
-            MenuNavigationItem(icon = Icons.Outlined.Folder, title = "View Shared Files", titleColor = TextPrimary)
-            Spacer(modifier = Modifier.height(8.dp))
-            MenuNavigationItem(icon = Icons.Outlined.DeleteOutline, title = "Remove / Forget Device", titleColor = AlertPink, showIcon = false)
+            MenuNavigationItem(
+                icon = Icons.Outlined.Folder,
+                title = "View Shared Files",
+                titleColor = TextPrimary,
+                onClick = { onNavigate(Screen.FILES) }
+            )
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
@@ -90,19 +102,20 @@ private fun PeerDetailsTopBar(onBackClick: () -> Unit = {}) {
                     fontWeight = FontWeight.Bold
                 )
             }
-            Icon(
-                imageVector = Icons.Outlined.MoreVert,
-                contentDescription = "More",
-                tint = StatusActive,
-                modifier = Modifier.size(24.dp)
-            )
         }
         HorizontalDivider(color = DividerColor, thickness = 1.dp)
     }
 }
 
 @Composable
-private fun PeerHeaderSection() {
+private fun PeerHeaderSection(peer: MeshNode?) {
+    val name = peer?.alias?.ifEmpty { peer.nodeId } ?: "Discovered Mesh Node"
+    val hopsText = if (peer != null) {
+        if (peer.isDirectNeighbor) "Connected • Direct neighbor" else "Connected • ${peer.hopDistance} hops away"
+    } else {
+        "Searching for mesh peers..."
+    }
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
@@ -112,7 +125,7 @@ private fun PeerHeaderSection() {
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Outlined.Router,
+                imageVector = if (peer?.isDirectNeighbor == true) Icons.Outlined.Person else Icons.Outlined.Router,
                 contentDescription = "Device",
                 tint = StatusActive,
                 modifier = Modifier.size(36.dp)
@@ -120,23 +133,23 @@ private fun PeerHeaderSection() {
             Box(
                 modifier = Modifier
                     .size(12.dp)
-                    .background(StatusActive, CircleShape)
+                    .background(if (peer != null) StatusActive else TextSecondary, CircleShape)
                     .align(Alignment.BottomEnd)
             )
         }
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "Rescue Team",
+            text = name,
             color = TextPrimary,
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(6.dp).background(StatusActive, CircleShape))
+            Box(modifier = Modifier.size(6.dp).background(if (peer != null) StatusActive else TextSecondary, CircleShape))
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "Connected • 2 hops away",
+                text = hopsText,
                 color = StatusActive,
                 fontSize = 13.sp,
                 fontFamily = FontFamily.Monospace
@@ -174,13 +187,16 @@ private fun PeerHeaderSection() {
 }
 
 @Composable
-private fun ActionButtonsRow() {
+private fun ActionButtonsRow(
+    onMessageClick: () -> Unit,
+    onSendFileClick: () -> Unit
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Button(
-            onClick = { },
+            onClick = onMessageClick,
             modifier = Modifier
                 .weight(1f)
                 .height(48.dp),
@@ -193,7 +209,7 @@ private fun ActionButtonsRow() {
         }
 
         OutlinedButton(
-            onClick = { },
+            onClick = onSendFileClick,
             modifier = Modifier
                 .weight(1f)
                 .height(48.dp),
@@ -209,7 +225,11 @@ private fun ActionButtonsRow() {
 }
 
 @Composable
-private fun ConnectionInfoCard() {
+private fun ConnectionInfoCard(peer: MeshNode?) {
+    val transport = peer?.transportType ?: "BLE & Wi-Fi Direct"
+    val hops = if (peer != null) "${peer.hopDistance} hops" else "1 hop"
+    val signalBars = if (peer == null) 2 else if (peer.rssi > -60) 4 else if (peer.rssi > -80) 3 else 2
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -224,17 +244,13 @@ private fun ConnectionInfoCard() {
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
-            ConnectionRow("Connection", "Wi-Fi Direct")
+            ConnectionRow("Transport", transport)
             HorizontalDivider(color = DividerColor, thickness = 1.dp)
-            ConnectionRow("Status", "Connected")
+            ConnectionRow("Status", if (peer != null) "Connected" else "Scanning")
             HorizontalDivider(color = DividerColor, thickness = 1.dp)
-            ConnectionSignalRow("Signal", "Good", 3)
+            ConnectionSignalRow("Signal", if (signalBars >= 3) "Good" else "Fair", signalBars)
             HorizontalDivider(color = DividerColor, thickness = 1.dp)
-            ConnectionRow("Hop Count", "2 hops")
-            HorizontalDivider(color = DividerColor, thickness = 1.dp)
-            ConnectionRow("Next Hop", "Device-7A42")
-            HorizontalDivider(color = DividerColor, thickness = 1.dp)
-            ConnectionRow("Latency", "45 ms")
+            ConnectionRow("Hop Distance", hops)
             HorizontalDivider(color = DividerColor, thickness = 1.dp)
             ConnectionRow("Last Seen", "Just now", valueColor = StatusActive)
         }
@@ -285,82 +301,10 @@ private fun ConnectionSignalRow(label: String, value: String, signalBars: Int) {
 }
 
 @Composable
-private fun RouteToPeerCard() {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Start
-            ) {
-                Text(
-                    text = "ROUTE TO PEER",
-                    color = TextSecondary,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-            Spacer(modifier = Modifier.height(16.dp))
+private fun IdentitySecurityCard(peer: MeshNode?) {
+    val nodeId = peer?.nodeId ?: "NODE-LOCAL"
+    val fingerprint = "${nodeId.take(4).uppercase()} •••• ${nodeId.takeLast(4).uppercase()}"
 
-            // Route Graph Visual
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(SurfaceDarker, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(imageVector = Icons.Outlined.PhoneAndroid, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
-                }
-                Text(text = "You", color = TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 4.dp))
-
-                Box(modifier = Modifier.width(2.dp).height(24.dp).background(StatusActive))
-
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(SurfaceDarker, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(imageVector = Icons.Outlined.Router, contentDescription = null, tint = StatusActive, modifier = Modifier.size(16.dp))
-                }
-                Text(text = "Device-7A42", color = TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 4.dp))
-
-                Box(modifier = Modifier.width(2.dp).height(24.dp).background(StatusActive))
-
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(SurfaceDarker, CircleShape)
-                        .border(1.dp, StatusActive, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(imageVector = Icons.Outlined.Router, contentDescription = null, tint = StatusActive, modifier = Modifier.size(20.dp))
-                }
-                Text(text = "Rescue Team", color = StatusActive, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Traffic is forwarded through encrypted relay nodes.",
-                color = TextSecondary,
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
-            )
-        }
-    }
-}
-
-@Composable
-private fun IdentitySecurityCard() {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -379,31 +323,15 @@ private fun IdentitySecurityCard() {
                 Icon(imageVector = Icons.Outlined.VerifiedUser, contentDescription = null, tint = StatusActive, modifier = Modifier.size(24.dp))
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
-                    Text(text = "Peer Identity Verified", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text(text = "Verified", color = StatusActive, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                    Text(text = "Peer Identity Encrypted", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "Verified via Mesh", color = StatusActive, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider(color = DividerColor, thickness = 1.dp)
             Spacer(modifier = Modifier.height(16.dp))
-            ConnectionRow("Device ID", "ZG-7A42-••••")
-            ConnectionRow("Fingerprint", "84:A7:••:••:21:F9")
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = "Verify this device's identity before sharing sensitive information.",
-                color = TextSecondary,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-            OutlinedButton(
-                onClick = { },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
-                border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor)
-            ) {
-                Text(text = "Verify Identity", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            }
+            ConnectionRow("Device ID", nodeId)
+            ConnectionRow("Fingerprint", fingerprint)
         }
     }
 }
@@ -447,8 +375,9 @@ private fun TrustDeviceCard(checked: Boolean, onCheckedChange: (Boolean) -> Unit
 }
 
 @Composable
-private fun MenuNavigationItem(icon: ImageVector, title: String, titleColor: Color, showIcon: Boolean = true) {
+private fun MenuNavigationItem(icon: ImageVector, title: String, titleColor: Color, onClick: () -> Unit = {}) {
     Card(
+        onClick = onClick,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
         shape = RoundedCornerShape(12.dp)
@@ -465,9 +394,7 @@ private fun MenuNavigationItem(icon: ImageVector, title: String, titleColor: Col
                 Spacer(modifier = Modifier.width(16.dp))
                 Text(text = title, color = titleColor, fontSize = 16.sp, fontWeight = FontWeight.Medium)
             }
-            if (showIcon) {
-                Icon(imageVector = Icons.Outlined.ChevronRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(20.dp))
-            }
+            Icon(imageVector = Icons.Outlined.ChevronRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -481,4 +408,4 @@ fun ZeroGridPeerDetailsPreview() {
     ZeroGridTheme {
         ZeroGridPeerDetailsScreen()
     }
-}
+}

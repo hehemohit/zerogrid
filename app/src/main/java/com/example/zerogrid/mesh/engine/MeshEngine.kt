@@ -221,3 +221,22 @@ class MeshEngine private constructor(context: Context) {
         }
     }
 }
+
+data class FileTransferItem(
+    val id: String,
+    val fileName: String,
+    val fileSize: String,
+    val transferredSize: String,
+    val progress: Float,
+    val speed: String,
+    val peerName: String,
+    val isOutgoing: Boolean
+)
+
+data class SharedFileItem(
+    val id: String,
+    val fileName: String,
+    val fileSize: String,
+    val senderName: String,
+    val timestamp: Long
+)

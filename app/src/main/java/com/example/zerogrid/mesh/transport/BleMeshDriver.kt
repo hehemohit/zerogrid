@@ -44,7 +44,7 @@ import kotlin.time.Duration.Companion.milliseconds
  */
 class BleMeshDriver(
     private val context: Context,
-    localNodeId: String
+    localNodeId: String,
 ) : MeshTransport {
 
     init {
@@ -66,7 +66,7 @@ class BleMeshDriver(
         val transmissionId: UUID,
         val sequence: Int,
         val flags: Byte,
-        val payload: ByteArray
+        val payload: ByteArray,
     ) {
         companion object {
             const val HEADER_SIZE = 16 + 4 + 1
@@ -83,7 +83,7 @@ class BleMeshDriver(
                     val leastSig = buffer.long
                     val seq = buffer.int
                     val flag = buffer.get()
-                    val payload = ByteArray(buffer.remaining())
+                    val payload = ByteArray(size = buffer.remaining())
                     buffer.get(payload)
                     BleFrame(UUID(mostSig, leastSig), seq, flag, payload)
                 } catch (_: Exception) {
@@ -120,7 +120,7 @@ class BleMeshDriver(
         }
     }
 
-    private class ReassemblySession(val transmissionId: UUID) {
+    private class ReassemblySession(transmissionId: UUID) {
         val chunks = ConcurrentHashMap<Int, ByteArray>()
         var lastUpdate = System.currentTimeMillis()
         var isComplete = false
@@ -133,10 +133,10 @@ class BleMeshDriver(
         fun addChunk(frame: BleFrame): Boolean {
             lastUpdate = System.currentTimeMillis()
             chunks[frame.sequence] = frame.payload
-            if (frame.flags == BleFrame.FLAG_END || frame.flags == BleFrame.FLAG_SINGLE) {
+            if ((frame.flags == BleFrame.FLAG_END) || (frame.flags == BleFrame.FLAG_SINGLE)) {
                 expectedChunks = frame.sequence + 1
             }
-            if (expectedChunks != -1 && chunks.size == expectedChunks) {
+            if ((expectedChunks != -1) && (chunks.size == expectedChunks)) {
                 isComplete = true
             }
             return isComplete

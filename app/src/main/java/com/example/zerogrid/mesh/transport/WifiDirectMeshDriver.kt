@@ -32,7 +32,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class WifiDirectMeshDriver(
     private val context: Context,
-    localNodeId: String
+    localNodeId: String,
 ) : MeshTransport {
 
     init {
@@ -125,15 +125,18 @@ class WifiDirectMeshDriver(
 
             startServerSocketListener()
 
-            wifiP2pManager?.discoverPeers(channel, object : WifiP2pManager.ActionListener {
-                override fun onSuccess() {
-                    Log.d(TAG, "Wi-Fi Direct peer discovery initiated")
-                }
+            wifiP2pManager?.discoverPeers(
+                channel,
+                object : WifiP2pManager.ActionListener {
+                    override fun onSuccess() {
+                        Log.d(TAG, "Wi-Fi Direct peer discovery initiated")
+                    }
 
-                override fun onFailure(reasonCode: Int) {
-                    Log.e(TAG, "Wi-Fi Direct peer discovery failed code: $reasonCode")
-                }
-            })
+                    override fun onFailure(reasonCode: Int) {
+                        Log.e(TAG, "Wi-Fi Direct peer discovery failed code: $reasonCode")
+                    }
+                },
+            )
         } catch (e: Exception) {
             Log.e(TAG, "Error starting Wi-Fi Direct discovery", e)
         }
@@ -172,7 +175,7 @@ class WifiDirectMeshDriver(
     private suspend fun transmitToAddress(address: String, packet: MeshPacket) = withContext(Dispatchers.IO) {
         try {
             var socket = peerSockets[address]
-            if (socket == null || socket.isClosed) {
+            if ((socket == null) || socket.isClosed) {
                 socket = Socket()
                 socket.connect(InetSocketAddress(address, SERVER_PORT), 5000)
                 peerSockets[address] = socket
@@ -203,7 +206,7 @@ class WifiDirectMeshDriver(
             try {
                 serverSocket = ServerSocket(SERVER_PORT)
                 Log.d(TAG, "Socket server listening on port $SERVER_PORT")
-                while (isRunning && serverSocket?.isClosed == false) {
+                while (isRunning && (serverSocket?.isClosed == false)) {
                     val socket = serverSocket?.accept() ?: break
                     val clientAddress = socket.inetAddress?.hostAddress
                     clientAddress?.let { peerSockets[it] = socket }
@@ -250,7 +253,7 @@ class WifiDirectMeshDriver(
                 transportType = MeshNode.TRANSPORT_WIFI_DIRECT,
                 lastSeenTimestamp = System.currentTimeMillis(),
                 hopDistance = 1,
-                isDirectNeighbor = true
+                isDirectNeighbor = true,
             )
             scope.launch {
                 _peerDiscoveryFlow.emit(node)

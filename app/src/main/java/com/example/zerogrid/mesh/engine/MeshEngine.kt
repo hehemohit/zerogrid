@@ -49,7 +49,7 @@ class MeshEngine private constructor(context: Context) {
     private val _sosAlerts = MutableStateFlow<List<MeshPacket>>(emptyList())
     val sosAlerts: StateFlow<List<MeshPacket>> = _sosAlerts.asStateFlow()
 
-    private val _isMeshActive = MutableStateFlow(false)
+    private val _isMeshActive = MutableStateFlow(value = false)
     val isMeshActive: StateFlow<Boolean> = _isMeshActive.asStateFlow()
 
     private val scope = CoroutineScope(Dispatchers.IO)
@@ -105,7 +105,7 @@ class MeshEngine private constructor(context: Context) {
             senderId = localNodeId,
             recipientId = MeshPacket.BROADCAST_ADDRESS,
             type = PacketType.CHANNEL_BROADCAST,
-            payload = payload
+            payload = payload,
         )
         routingEngine.sendOutboundPacket(packet)
         return packet
@@ -118,7 +118,7 @@ class MeshEngine private constructor(context: Context) {
             recipientId = MeshPacket.BROADCAST_ADDRESS,
             ttl = 10,
             type = PacketType.SOS_BEACON,
-            payload = payload
+            payload = payload,
         )
         routingEngine.sendOutboundPacket(packet)
         handleIncomingPacket(packet)

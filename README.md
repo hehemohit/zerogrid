@@ -26,7 +26,7 @@ ZeroGrid is a decentralized off-grid mesh communication application that enables
 ```
 
 > [!NOTE]
-> All 18 UI screens, navigation graph, BLE & Wi-Fi Direct transport drivers, multi-hop routing engine, and foreground service daemon are **fully implemented and verified**.
+> All 18 UI screens, navigation graph, BLE & Wi-Fi Direct transport drivers, multi-hop routing engine and foreground service daemon are **fully implemented and verified**.
 
 ---
 
@@ -45,6 +45,7 @@ ZeroGrid is a decentralized off-grid mesh communication application that enables
 All user interface screens are organized by feature domain under `app/src/main/java/com/example/zerogrid/`:
 
 ### 1. 🏠 Home & Dashboard (`home/`)
+
 - [`MeshDashboardScreen.kt`](app/src/main/java/com/example/zerogrid/home/MeshDashboardScreen.kt)
   - Active node identity header (Node ID, Signal strength, Mesh status).
   - Real-time mesh connection status card (hop count, routing mode, active peers count, tap for Network Status).
@@ -53,6 +54,7 @@ All user interface screens are organized by feature domain under `app/src/main/j
   - Floating SOS emergency broadcast FAB.
 
 ### 2. 💬 Messaging & Channels (`messaging/`)
+
 - [`MessagesScreen.kt`](app/src/main/java/com/example/zerogrid/messaging/MessagesScreen.kt)
   - Direct 1-on-1 conversations list with unread badges, timestamp, encryption status, and last seen metrics.
   - Quick access to channels and direct peer chat navigation.
@@ -64,6 +66,7 @@ All user interface screens are organized by feature domain under `app/src/main/j
   - Message delivery status indicators (Sent, Relayed via X Hops, Delivered, Read).
 
 ### 3. 📡 Mesh Management & Discovery (`mesh/`)
+
 - [`NearbyDevicesScreen.kt`](app/src/main/java/com/example/zerogrid/mesh/NearbyDevicesScreen.kt)
   - BLE & Wi-Fi Direct peer radar/scanner list with RSSI dBm and transport type.
   - Manual connection triggers and peer detail view navigation.
@@ -74,6 +77,7 @@ All user interface screens are organized by feature domain under `app/src/main/j
   - Mesh topology statistics: Active nodes, direct neighbors, relay hops, packets relayed, and throughput.
 
 ### 4. 📁 File Sharing & Transfer (`files/`)
+
 - [`FilesScreen.kt`](app/src/main/java/com/example/zerogrid/files/FilesScreen.kt)
   - Offline file explorer showing received/shared media, documents, and APK packages.
 - [`SendFileScreen.kt`](app/src/main/java/com/example/zerogrid/files/SendFileScreen.kt)
@@ -82,6 +86,7 @@ All user interface screens are organized by feature domain under `app/src/main/j
   - Live transfer progress bar with chunk transfer rate (KB/s), estimated time remaining, SHA-256 chunk validation status, and pause/cancel controls.
 
 ### 5. 🚨 Emergency & SOS Beacon (`emergency/`)
+
 - [`SosCenterScreen.kt`](app/src/main/java/com/example/zerogrid/emergency/SosCenterScreen.kt)
   - High-visibility emergency control room with active emergency alerts received over the mesh.
   - Quick emergency guides (Medical, Disaster, Rescue).
@@ -90,16 +95,19 @@ All user interface screens are organized by feature domain under `app/src/main/j
   - Custom emergency message and GPS location attachment toggle.
 
 ### 6. 🚀 Onboarding & Identity (`onboarding/`)
+
 - [`SplashScreen.kt`](app/src/main/java/com/example/zerogrid/onboarding/SplashScreen.kt): Animated cybernetic entrance logo.
 - [`OnboardingScreen.kt`](app/src/main/java/com/example/zerogrid/onboarding/OnboardingScreen.kt): Multi-hop mesh concept walkthrough.
 - [`PermissionsScreen.kt`](app/src/main/java/com/example/zerogrid/onboarding/PermissionsScreen.kt): Requesting Bluetooth, Nearby Devices, Location, and Wi-Fi permissions.
 - [`CreateIdentityScreen.kt`](app/src/main/java/com/example/zerogrid/onboarding/CreateIdentityScreen.kt): Cryptographic node pseudonym and key pair generation prompt.
 
 ### 7. ⚙️ Settings & Privacy (`settings/`)
+
 - [`SettingsScreen.kt`](app/src/main/java/com/example/zerogrid/settings/SettingsScreen.kt): Network mode, mesh discovery, automatic switching, and relay mode toggles.
 - [`SecurityPrivacyScreen.kt`](app/src/main/java/com/example/zerogrid/settings/SecurityPrivacyScreen.kt): End-to-End encryption management, public key fingerprint export/QR code, identity reset, and anonymous routing toggles.
 
 ### 8. 🗺 Navigation & Theme (`navigation/`, `ui/theme/`)
+
 - [`Routes.kt`](app/src/main/java/com/example/zerogrid/navigation/Routes.kt): `Screen` enum definition for all 18 routes.
 - [`NavGraph.kt`](app/src/main/java/com/example/zerogrid/navigation/NavGraph.kt): Navigation controller with back-stack support and back-press handling.
 - [`BottomNavigation.kt`](app/src/main/java/com/example/zerogrid/navigation/BottomNavigation.kt): Persistent bottom navigation bar.
@@ -112,12 +120,14 @@ All user interface screens are organized by feature domain under `app/src/main/j
 ZeroGrid features a multi-hop P2P communications layer:
 
 ### 1. Transports (`mesh/transport/`)
+
 - **BLE Driver ([`BleMeshDriver.kt`](app/src/main/java/com/example/zerogrid/mesh/transport/BleMeshDriver.kt)):**
   - Manages BLE Advertising, Scanning, GATT Server, and GATT Client transmission for neighbor discovery and lightweight packet exchange.
 - **Wi-Fi Direct Driver ([`WifiDirectMeshDriver.kt`](app/src/main/java/com/example/zerogrid/mesh/transport/WifiDirectMeshDriver.kt)):**
   - Handles `WifiP2pManager` discovery and TCP socket channels for high-bandwidth file/data transfers.
 
 ### 2. Mesh Engine & Routing (`mesh/engine/`)
+
 - **Mesh Engine ([`MeshEngine.kt`](app/src/main/java/com/example/zerogrid/mesh/engine/MeshEngine.kt)):**
   - Central facade orchestrating transports, inbound/outbound packet flows, reactive `StateFlow` streams, and background tasks.
 - **Routing Engine ([`MeshRoutingEngine.kt`](app/src/main/java/com/example/zerogrid/mesh/engine/MeshRoutingEngine.kt)):**
@@ -128,6 +138,7 @@ ZeroGrid features a multi-hop P2P communications layer:
   - Dynamic, thread-safe peer registry tracking RSSI metrics, hop distance, and last-seen timestamps.
 
 ### 3. Foreground Service (`service/`)
+
 - **Mesh Foreground Service ([`MeshForegroundService.kt`](app/src/main/java/com/example/zerogrid/service/MeshForegroundService.kt)):**
   - Keeps radio listeners and relay nodes alive in the background with an ongoing Android system notification.
 
@@ -173,12 +184,14 @@ zerogrid/
 ## 🚀 Getting Started for Developers
 
 ### Prerequisites
+
 1. **Android Studio** (Koala / Ladybug or newer).
 2. **Android SDK** API level 35.
 3. **Android NDK** `27.0.12077973` and **CMake** `3.22.1`.
 4. **JDK 17** configured as Gradle JDK.
 
 ### Building & Running
+
 ```bash
 # Clone the repository
 git clone https://github.com/hehemohit/zerogrid.git
@@ -196,4 +209,5 @@ cd zerogrid
 ---
 
 ## 👥 Contributors & Maintainers
+
 - **ZeroGrid Core Team** — Mesh Networking & UI/UX Architecture

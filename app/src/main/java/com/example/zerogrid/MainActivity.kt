@@ -6,21 +6,78 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import com.example.zerogrid.navigation.ZeroGridApp
 import com.example.zerogrid.service.MeshForegroundService
 import com.example.zerogrid.ui.theme.ZeroGridTheme
+import com.zerogrid.mesh.app.ui.*
 
 @Composable
-fun ZeroGridScreen() {
-    ZeroGridApp()
+fun MainAppGateway() {
+    val context = LocalContext.current
+    val sessionManager = remember { UserSessionManager.getInstance(context) }
+
+    var currentRoute by remember { mutableStateOf(AppRoute.ROUTE_ROLE_SELECTION) }
+    var currentUserName by remember { mutableStateOf(sessionManager.getUserName()) }
+    var showFullMeshApp by remember { mutableStateOf(false) }
+
+    // Hardware and gesture back handling
+    BackHandler(enabled = (currentRoute != AppRoute.ROUTE_ROLE_SELECTION || showFullMeshApp)) {
+        if (showFullMeshApp) {
+            showFullMeshApp = false
+        } else {
+            currentRoute = AppRoute.ROUTE_ROLE_SELECTION
+        }
+    }
+
+    if (showFullMeshApp) {
+        ZeroGridApp()
+    } else {
+        when (currentRoute) {
+            AppRoute.ROUTE_ROLE_SELECTION -> {
+                RoleSelectionScreen(
+                    onRoleSelected = { role, name ->
+                        currentUserName = name
+                        currentRoute = when (role) {
+                            UserRole.CITIZEN -> AppRoute.ROUTE_USER_DASHBOARD
+                            UserRole.AUTHORITY -> AppRoute.ROUTE_AUTHORITY_DASHBOARD
+                        }
+                    }
+                )
+            }
+            AppRoute.ROUTE_USER_DASHBOARD -> {
+                UserDashboardScreen(
+                    userName = currentUserName,
+                    onBackToRoles = {
+                        currentRoute = AppRoute.ROUTE_ROLE_SELECTION
+                    },
+                    onOpenFullMeshApp = {
+                        showFullMeshApp = true
+                    }
+                )
+            }
+            AppRoute.ROUTE_AUTHORITY_DASHBOARD -> {
+                AuthorityDashboardScreen(
+                    userName = currentUserName,
+                    onBackToRoles = {
+                        currentRoute = AppRoute.ROUTE_ROLE_SELECTION
+                    },
+                    onOpenFullMeshApp = {
+                        showFullMeshApp = true
+                    }
+                )
+            }
+        }
+    }
 }
 
 class MainActivity : ComponentActivity() {
@@ -52,7 +109,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    ZeroGridScreen()
+                    MainAppGateway()
                 }
             }
         }

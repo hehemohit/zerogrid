@@ -142,6 +142,26 @@ class MeshForegroundService : Service() {
         return START_STICKY
     }
 
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        Log.i(TAG, "App task removed (swiped away from Recent Apps). Shutting down mesh operations.")
+        try {
+            serviceScope.cancel()
+            meshEngine?.stopMesh()
+        } catch (e: Throwable) {
+            Log.e(TAG, "Error stopping mesh engine in onTaskRemoved", e)
+        }
+        try {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } catch (_: Throwable) {
+            try {
+                @Suppress("DEPRECATION")
+                stopForeground(true)
+            } catch (_: Throwable) {}
+        }
+        stopSelf()
+        super.onTaskRemoved(rootIntent)
+    }
+
     override fun onDestroy() {
         try {
             serviceScope.cancel()

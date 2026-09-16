@@ -38,6 +38,17 @@ class MessageStore private constructor(context: Context) {
             (0 until arr.length()).mapNotNull { i ->
                 try {
                     val obj = arr.getJSONObject(i)
+                    val isMine = obj.optBoolean("isMine", false)
+                    val statusStr = if (obj.has("status")) obj.optString("status") else null
+                    val status = if (!statusStr.isNullOrEmpty()) {
+                        try {
+                            MessageStatus.valueOf(statusStr)
+                        } catch (_: Exception) {
+                            if (isMine) MessageStatus.SENT else MessageStatus.DELIVERED
+                        }
+                    } else {
+                        if (isMine) MessageStatus.SENT else MessageStatus.DELIVERED
+                    }
                     StoredMessage(
                         id = obj.optString("id"),
                         senderId = obj.optString("senderId"),
@@ -45,7 +56,8 @@ class MessageStore private constructor(context: Context) {
                         text = obj.optString("text"),
                         timestamp = obj.optLong("timestamp", System.currentTimeMillis()),
                         hopCount = obj.optInt("hopCount", 0),
-                        isMine = obj.optBoolean("isMine", false)
+                        isMine = isMine,
+                        status = status
                     )
                 } catch (e: Exception) {
                     null
@@ -78,11 +90,41 @@ class MessageStore private constructor(context: Context) {
                     put("timestamp", m.timestamp)
                     put("hopCount", m.hopCount)
                     put("isMine", m.isMine)
+                    put("status", m.status.name)
                 })
             }
             prefs.edit().putString("$CONV_KEY_PREFIX$peerId", arr.toString()).apply()
         } catch (e: Exception) {
             Log.e(TAG, "Error appending message for $peerId", e)
+        }
+    }
+
+    /** Update status of a specific message on disk. */
+    fun updateMessageStatus(peerId: String, messageId: String, newStatus: MessageStatus): Boolean {
+        return try {
+            val current = getConversation(peerId).toMutableList()
+            val index = current.indexOfFirst { it.id == messageId }
+            if (index == -1) return false
+            val old = current[index]
+            current[index] = old.copy(status = newStatus)
+            val arr = JSONArray()
+            current.forEach { m ->
+                arr.put(JSONObject().apply {
+                    put("id", m.id)
+                    put("senderId", m.senderId)
+                    put("recipientId", m.recipientId)
+                    put("text", m.text)
+                    put("timestamp", m.timestamp)
+                    put("hopCount", m.hopCount)
+                    put("isMine", m.isMine)
+                    put("status", m.status.name)
+                })
+            }
+            prefs.edit().putString("$CONV_KEY_PREFIX$peerId", arr.toString()).apply()
+            true
+        } catch (e: Exception) {
+            Log.e(TAG, "Error updating status for message $messageId for $peerId", e)
+            false
         }
     }
 
@@ -111,6 +153,13 @@ class MessageStore private constructor(context: Context) {
     fun getLastMessage(peerId: String): StoredMessage? = getConversation(peerId).lastOrNull()
 }
 
+enum class MessageStatus {
+    SENDING,
+    PAUSED,
+    SENT,
+    DELIVERED
+}
+
 data class StoredMessage(
     val id: String,
     val senderId: String,
@@ -118,5 +167,6 @@ data class StoredMessage(
     val text: String,
     val timestamp: Long,
     val hopCount: Int,
-    val isMine: Boolean
+    val isMine: Boolean,
+    val status: MessageStatus = if (isMine) MessageStatus.SENT else MessageStatus.DELIVERED
 )

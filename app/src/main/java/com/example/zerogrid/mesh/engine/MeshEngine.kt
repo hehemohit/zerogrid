@@ -2,12 +2,14 @@ package com.example.zerogrid.mesh.engine
 
 import android.content.Context
 import android.util.Log
+import com.example.zerogrid.messaging.MessageStatus
 import com.example.zerogrid.messaging.MessageStore
 import com.example.zerogrid.messaging.StoredMessage
 import com.example.zerogrid.mesh.transport.BleMeshDriver
 import com.example.zerogrid.mesh.transport.WifiDirectMeshDriver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -132,6 +134,18 @@ class MeshEngine private constructor(private val context: Context) {
                 handleIncomingPacket(packet)
             }
         }
+
+        // 15-second background retry loop for paused messages in the store-and-forward pipeline
+        scope.launch {
+            while (true) {
+                delay(15_000L)
+                try {
+                    retryPausedMessages()
+                } catch (e: Exception) {
+                    Log.e(TAG, "Exception in 15s retry loop", e)
+                }
+            }
+        }
     }
 
     /** Returns the conversation history for a specific peer (live StateFlow slice). */
@@ -184,18 +198,34 @@ class MeshEngine private constructor(private val context: Context) {
         _isMeshActive.value = false
     }
 
+    /** Checks if a peer is currently reachable or active on the mesh. */
+    fun isPeerOnline(peerId: String): Boolean {
+        val peer = peerTable.getPeer(peerId)
+        val isFreshInTable = peer != null && (System.currentTimeMillis() - peer.lastSeenTimestamp <= 35_000L)
+        return isFreshInTable || bleDriver.isPeerReachable(peerId)
+    }
+
     /**
-     * Send a direct message to a peer. Also stores it locally as a sent message
-     * so the conversation history is immediately visible without waiting for echo.
+     * Send a direct message to a peer.
+     * If the recipient is offline/unreachable, the message is placed in the pipeline with PAUSED status.
+     * The background retry loop and tap-to-retry mechanism will deliver it when reachability is restored.
      */
     fun sendDirectMessage(recipientId: String, text: String): MeshPacket {
+        val isOnline = isPeerOnline(recipientId)
         val packet = MeshPacket(
             senderId = localNodeId,
             recipientId = recipientId,
             type = PacketType.DIRECT_MESSAGE,
             payload = text,
         )
-        routingEngine.sendOutboundPacket(packet)
+
+        val status: MessageStatus
+        if (isOnline) {
+            val sent = routingEngine.sendOutboundPacket(packet)
+            status = if (sent) MessageStatus.SENT else MessageStatus.PAUSED
+        } else {
+            status = MessageStatus.PAUSED
+        }
 
         // Persist the sent message to local store immediately
         val stored = StoredMessage(
@@ -205,11 +235,78 @@ class MeshEngine private constructor(private val context: Context) {
             text = text,
             timestamp = packet.timestamp,
             hopCount = 0,
-            isMine = true
+            isMine = true,
+            status = status
         )
         persistAndUpdateConversation(recipientId, stored)
 
         return packet
+    }
+
+    /** Manually retries sending a paused message. Returns true if sent successfully. */
+    fun retryMessage(peerId: String, messageId: String): Boolean {
+        val msgs = _conversations.value[peerId] ?: return false
+        val msg = msgs.firstOrNull { it.id == messageId } ?: return false
+        if (!isPeerOnline(peerId)) {
+            Log.d(TAG, "Cannot retry message $messageId: peer $peerId is still offline")
+            return false
+        }
+        val packet = MeshPacket(
+            packetId = msg.id,
+            senderId = localNodeId,
+            recipientId = peerId,
+            type = PacketType.DIRECT_MESSAGE,
+            payload = msg.text,
+            timestamp = System.currentTimeMillis()
+        )
+        val sent = routingEngine.sendOutboundPacket(packet)
+        if (sent) {
+            updateMessageStatus(peerId, messageId, MessageStatus.SENT)
+            return true
+        }
+        return false
+    }
+
+    /** Updates a message's status both on disk and in the live in-memory StateFlow. */
+    fun updateMessageStatus(peerId: String, messageId: String, newStatus: MessageStatus) {
+        messageStore.updateMessageStatus(peerId, messageId, newStatus)
+        val updated = _conversations.value.toMutableMap()
+        val list = updated[peerId]?.toMutableList() ?: return
+        val idx = list.indexOfFirst { it.id == messageId }
+        if (idx != -1) {
+            list[idx] = list[idx].copy(status = newStatus)
+            updated[peerId] = list
+            _conversations.value = updated
+        }
+    }
+
+    /** Prunes stale peers and retries delivery for all paused messages destined for online peers. */
+    fun retryPausedMessages() {
+        peerTable.pruneStalePeers(35_000L)
+        _connectedPeers.value = peerTable.getAllPeers()
+
+        val allConvs = _conversations.value
+        allConvs.forEach { (peerId, msgs) ->
+            val paused = msgs.filter { it.isMine && it.status == MessageStatus.PAUSED }
+            if (paused.isNotEmpty() && isPeerOnline(peerId)) {
+                Log.d(TAG, "Background retry: peer $peerId online, retrying ${paused.size} paused message(s)")
+                paused.forEach { msg ->
+                    val packet = MeshPacket(
+                        packetId = msg.id,
+                        senderId = localNodeId,
+                        recipientId = peerId,
+                        type = PacketType.DIRECT_MESSAGE,
+                        payload = msg.text,
+                        timestamp = System.currentTimeMillis()
+                    )
+                    val sent = routingEngine.sendOutboundPacket(packet)
+                    if (sent) {
+                        Log.d(TAG, "Background retry succeeded for message ${msg.id} to $peerId")
+                        updateMessageStatus(peerId, msg.id, MessageStatus.SENT)
+                    }
+                }
+            }
+        }
     }
 
     fun broadcastChannelMessage(channelName: String, text: String): MeshPacket {
@@ -290,9 +387,25 @@ class MeshEngine private constructor(private val context: Context) {
                     text = packet.payload,
                     timestamp = packet.timestamp,
                     hopCount = packet.hopCount,
-                    isMine = false
+                    isMine = false,
+                    status = MessageStatus.DELIVERED
                 )
                 persistAndUpdateConversation(packet.senderId, stored)
+
+                // Send ACK back to sender to confirm delivery
+                val ackPacket = MeshPacket(
+                    senderId = localNodeId,
+                    recipientId = packet.senderId,
+                    type = PacketType.ACK,
+                    payload = packet.packetId
+                )
+                routingEngine.sendOutboundPacket(ackPacket)
+            }
+            PacketType.ACK -> {
+                val originalMsgId = packet.payload
+                if (originalMsgId.isNotBlank()) {
+                    updateMessageStatus(packet.senderId, originalMsgId, MessageStatus.DELIVERED)
+                }
             }
             PacketType.CHANNEL_BROADCAST -> {
                 val current = _receivedMessages.value.toMutableList()

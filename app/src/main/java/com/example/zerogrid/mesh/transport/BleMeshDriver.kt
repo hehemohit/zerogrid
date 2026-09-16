@@ -443,6 +443,13 @@ class BleMeshDriver(
         }
     }
 
+    /** Check whether a peer device is reachable via active BLE cache/connections. */
+    fun isPeerReachable(peerId: String): Boolean {
+        if (!isRunning || bluetoothAdapter == null) return false
+        if (resolveDeviceForPeerId(peerId) != null) return true
+        return activeGatts.containsKey(peerId) || serverConnectedDevices.containsKey(peerId)
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // SEND PACKET
     // ─────────────────────────────────────────────────────────────────────────
@@ -450,6 +457,13 @@ class BleMeshDriver(
     @SuppressLint("MissingPermission")
     override fun sendPacket(packet: MeshPacket, targetPeerId: String?): Boolean {
         if (!isRunning || bluetoothAdapter == null) return false
+
+        // Check reachability early for direct messages
+        val directTarget = targetPeerId ?: if (packet.recipientId != MeshPacket.BROADCAST_ADDRESS && packet.recipientId != "*") packet.recipientId else null
+        if (directTarget != null && resolveDeviceForPeerId(directTarget) == null) {
+            DebugLogger.log(TAG, "Target peer $directTarget not reachable via BLE right now", DebugLevel.WARN)
+            return false
+        }
 
         scope.launch {
             val payloadBytes   = packet.toByteArray()

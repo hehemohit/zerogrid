@@ -491,6 +491,18 @@ private fun DirectMessagesSection(
                             )
                             Spacer(modifier = Modifier.height(5.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                if (lastMsg.isMine && lastMsg.status == MessageStatus.PAUSED) {
+                                    Text(
+                                        text = "⏸ Paused",
+                                        color = Color(0xFFFFB74D),
+                                        fontSize = 10.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier
+                                            .background(Color(0xFF3E3114), RoundedCornerShape(4.dp))
+                                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
                                 Text(
                                     text = if (isOnline) "Online" else "Last seen",
                                     color = if (isOnline) Color(0xFF4CAF50) else TextSecondary,

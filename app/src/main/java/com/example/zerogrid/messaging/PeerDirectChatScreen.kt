@@ -1,6 +1,8 @@
 package com.example.zerogrid.messaging
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -26,6 +28,7 @@ import com.example.zerogrid.mesh.engine.MeshEngine
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -40,6 +43,8 @@ fun PeerDirectChatScreen(
 ) {
     val context = LocalContext.current
     val meshEngine = remember { MeshEngine.getInstance(context) }
+    val coroutineScope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     var messageText by remember { mutableStateOf("") }
     val conversations by meshEngine.conversations.collectAsState()
@@ -65,6 +70,7 @@ fun PeerDirectChatScreen(
 
     Scaffold(
         containerColor = DarkBackground,
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             PeerChatTopBar(
                 displayName = displayName,
@@ -85,6 +91,7 @@ fun PeerDirectChatScreen(
                             messageText = ""
                         }
                     },
+                    isOnline = isOnline,
                     enabled = true
                 )
                 ZeroGridBottomBar(currentScreen = Screen.MESSAGES, onNavigate = onNavigate)
@@ -156,7 +163,20 @@ fun PeerDirectChatScreen(
             ) {
                 items(messages, key = { it.id }) { msg ->
                     if (msg.isMine) {
-                        SentMessageBubble(msg)
+                        SentMessageBubble(
+                            msg = msg,
+                            onRetryClick = {
+                                val retried = meshEngine.retryMessage(peerId, msg.id)
+                                if (!retried) {
+                                    coroutineScope.launch {
+                                        snackbarHostState.showSnackbar(
+                                            message = "Peer is still offline. ZeroGrid will retry automatically every 15s.",
+                                            duration = SnackbarDuration.Short
+                                        )
+                                    }
+                                }
+                            }
+                        )
                     } else {
                         ReceivedMessageBubble(msg, displayName)
                     }
@@ -249,8 +269,14 @@ private fun PeerChatTopBar(
 }
 
 @Composable
-private fun SentMessageBubble(msg: StoredMessage) {
+private fun SentMessageBubble(
+    msg: StoredMessage,
+    onRetryClick: () -> Unit
+) {
     val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(msg.timestamp)
+    val isPaused = msg.status == MessageStatus.PAUSED
+    val isSending = msg.status == MessageStatus.SENDING
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.End
@@ -258,13 +284,21 @@ private fun SentMessageBubble(msg: StoredMessage) {
         Box(
             modifier = Modifier
                 .widthIn(max = 280.dp)
-                .background(Color(0xFF0D2B28), RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp))
+                .background(
+                    if (isPaused) Color(0xFF2C2410) else Color(0xFF0D2B28),
+                    RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp)
+                )
+                .then(
+                    if (isPaused) Modifier.border(1.dp, Color(0xFFFFB74D), RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp))
+                    else Modifier
+                )
+                .clickable(enabled = isPaused) { onRetryClick() }
                 .padding(12.dp, 10.dp)
         ) {
             Column {
                 Text(
                     text = msg.text,
-                    color = StatusActive,
+                    color = if (isPaused) Color(0xFFFFE0B2) else StatusActive,
                     fontSize = 14.sp,
                     lineHeight = 20.sp
                 )
@@ -276,16 +310,79 @@ private fun SentMessageBubble(msg: StoredMessage) {
                 ) {
                     Text(
                         text = timeStr,
-                        color = StatusActive.copy(alpha = 0.6f),
+                        color = if (isPaused) Color(0xFFFFB74D).copy(alpha = 0.8f) else StatusActive.copy(alpha = 0.6f),
                         fontSize = 10.sp,
                         fontFamily = FontFamily.Monospace
                     )
-                    Icon(
-                        imageVector = Icons.Outlined.Check,
-                        contentDescription = "Sent",
-                        tint = StatusActive.copy(alpha = 0.6f),
-                        modifier = Modifier.size(12.dp)
-                    )
+                    when (msg.status) {
+                        MessageStatus.PAUSED -> {
+                            Icon(
+                                imageVector = Icons.Outlined.PauseCircleOutline,
+                                contentDescription = "Paused",
+                                tint = Color(0xFFFFB74D),
+                                modifier = Modifier.size(13.dp)
+                            )
+                        }
+                        MessageStatus.SENDING -> {
+                            Icon(
+                                imageVector = Icons.Outlined.Schedule,
+                                contentDescription = "Sending",
+                                tint = StatusActive.copy(alpha = 0.6f),
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                        MessageStatus.SENT -> {
+                            Icon(
+                                imageVector = Icons.Outlined.Check,
+                                contentDescription = "Sent",
+                                tint = StatusActive.copy(alpha = 0.7f),
+                                modifier = Modifier.size(12.dp)
+                            )
+                        }
+                        MessageStatus.DELIVERED -> {
+                            Row(horizontalArrangement = Arrangement.spacedBy((-6).dp)) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Check,
+                                    contentDescription = "Delivered",
+                                    tint = StatusActive,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Icon(
+                                    imageVector = Icons.Outlined.Check,
+                                    contentDescription = null,
+                                    tint = StatusActive,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (isPaused) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF3E3114), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Refresh,
+                            contentDescription = "Retry",
+                            tint = Color(0xFFFFB74D),
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "Paused • Peer offline • Tap to retry",
+                            color = Color(0xFFFFB74D),
+                            fontSize = 9.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -366,29 +463,30 @@ private fun PeerChatInputBar(
     messageText: String,
     onValueChange: (String) -> Unit,
     onSend: () -> Unit,
+    isOnline: Boolean,
     enabled: Boolean
 ) {
     Column {
         HorizontalDivider(color = DividerColor, thickness = 1.dp)
-        if (!enabled) {
+        if (!isOnline) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(SurfaceDarker)
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.WifiOff,
+                    imageVector = Icons.Outlined.PauseCircleOutline,
                     contentDescription = null,
-                    tint = TextSecondary,
-                    modifier = Modifier.size(14.dp)
+                    tint = Color(0xFFFFB74D),
+                    modifier = Modifier.size(13.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = "Device not in range — messages will send when reconnected",
-                    color = TextSecondary,
+                    text = "Peer offline — messages will pause & retry every 15s",
+                    color = Color(0xFFFFB74D),
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace
                 )
@@ -407,7 +505,7 @@ private fun PeerChatInputBar(
                 onValueChange = onValueChange,
                 placeholder = {
                     Text(
-                        text = if (enabled) "Send a message..." else "Device offline",
+                        text = if (isOnline) "Send a message..." else "Message (pauses if offline)...",
                         color = TextSecondary,
                         fontSize = 14.sp
                     )

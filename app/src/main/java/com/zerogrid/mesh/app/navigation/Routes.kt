@@ -1,0 +1,27 @@
+﻿package com.zerogrid.mesh.app.navigation
+
+enum class Screen {
+    HOME,
+    MESSAGES,
+    MESH,
+    FILES,
+    SETTINGS,
+    SOS_CENTER,
+    SEND_SOS,
+    SEND_FILE,
+    FILE_TRANSFER,
+    PEER_DETAILS,
+    CHANNELS,
+    CHAT_DETAIL,
+    PEER_DIRECT_CHAT,
+    SPLASH,
+    ONBOARDING,
+    PERMISSIONS,
+    CREATE_IDENTITY,
+    NETWORK_STATUS,
+    SECURITY_PRIVACY,
+    DEBUG_CONSOLE,
+    OFFLINE_MAP,
+    DOWNLOAD_TILES
+}
+

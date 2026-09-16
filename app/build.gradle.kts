@@ -1,4 +1,4 @@
-plugins {
+﻿plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
@@ -6,12 +6,12 @@ plugins {
 }
 
 android {
-    namespace = "com.example.zerogrid"
+    namespace = "com.zerogrid.mesh.app"
     compileSdk = 35
     ndkVersion = "27.0.12077973"
 
     defaultConfig {
-        applicationId = "com.example.zerogrid"
+        applicationId = "com.zerogrid.mesh.app"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

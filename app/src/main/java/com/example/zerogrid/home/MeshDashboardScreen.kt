@@ -34,6 +34,7 @@ fun MeshDashboardScreen(onNavigate: (Screen) -> Unit = {}) {
     val meshEngine = MeshEngine.getInstance(LocalContext.current)
     val peers by meshEngine.connectedPeers.collectAsState()
     val isMeshActive by meshEngine.isMeshActive.collectAsState()
+    val mappedPeers by meshEngine.peerLocations.collectAsState()
 
     Scaffold(
         containerColor = DarkBackground,
@@ -51,7 +52,7 @@ fun MeshDashboardScreen(onNavigate: (Screen) -> Unit = {}) {
             Spacer(modifier = Modifier.height(16.dp))
             MeshStatusCard(peersCount = peers.size, onNavigate = onNavigate)
             Spacer(modifier = Modifier.height(16.dp))
-            QuickActionsGrid(peersCount = peers.size, onNavigate = onNavigate)
+            QuickActionsGrid(peersCount = peers.size, mappedPeers = mappedPeers.size, onNavigate = onNavigate)
             Spacer(modifier = Modifier.height(24.dp))
             NearbyDevicesSection(peers = peers, onNavigate = onNavigate)
             Spacer(modifier = Modifier.height(32.dp)) // Extra space for FAB
@@ -198,7 +199,7 @@ private fun MetricCard(label: String, value: String, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun QuickActionsGrid(peersCount: Int, onNavigate: (Screen) -> Unit) {
+private fun QuickActionsGrid(peersCount: Int, mappedPeers: Int, onNavigate: (Screen) -> Unit) {
     Column {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             QuickActionCard(
@@ -222,12 +223,23 @@ private fun QuickActionsGrid(peersCount: Int, onNavigate: (Screen) -> Unit) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             QuickActionCard(
                 modifier = Modifier.weight(1f),
+                icon = Icons.Outlined.Map,
+                title = "Offline Map",
+                subtitle = if (mappedPeers > 0) "$mappedPeers mapped" else "No peers",
+                iconTint = StatusActive,
+                onClick = { onNavigate(Screen.OFFLINE_MAP) }
+            )
+            QuickActionCard(
+                modifier = Modifier.weight(1f),
                 icon = Icons.Outlined.Folder,
                 title = "Files",
                 subtitle = "2 active transfers",
                 iconTint = StatusActive,
                 onClick = { onNavigate(Screen.FILES) }
             )
+        }
+        Spacer(modifier = Modifier.height(12.dp))
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             QuickActionCard(
                 modifier = Modifier.weight(1f),
                 icon = Icons.Outlined.Emergency,
@@ -238,6 +250,7 @@ private fun QuickActionsGrid(peersCount: Int, onNavigate: (Screen) -> Unit) {
                 subtitleColor = AlertPink,
                 onClick = { onNavigate(Screen.SOS_CENTER) }
             )
+            Spacer(modifier = Modifier.weight(1f))
         }
     }
 }

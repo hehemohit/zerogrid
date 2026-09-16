@@ -13,6 +13,9 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.example.zerogrid.MainActivity
+import com.example.zerogrid.map.data.LocationPruneWorker
+import com.example.zerogrid.map.domain.LocationBroadcastManager
+import com.example.zerogrid.map.domain.MovementClassifier
 import com.example.zerogrid.mesh.engine.MeshEngine
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -97,6 +100,8 @@ class MeshForegroundService : Service() {
 
     private var meshEngine: MeshEngine? = null
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var movementClassifier: MovementClassifier? = null
+    private var locationBroadcastManager: LocationBroadcastManager? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -107,7 +112,15 @@ class MeshForegroundService : Service() {
         // Call startForeground IMMEDIATELY to satisfy Android's startup timeout.
         try {
             val notification = createNotification("Initializing ZeroGrid Mesh...")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                // Android 14+: must declare both connectedDevice and location types
+                startForeground(
+                    NOTIFICATION_ID,
+                    notification,
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE or
+                            ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+                )
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 startForeground(
                     NOTIFICATION_ID,
                     notification,
@@ -123,7 +136,7 @@ class MeshForegroundService : Service() {
                     Log.d(TAG, "Initializing MeshEngine in background...")
                     val engine = MeshEngine.getInstance(applicationContext)
                     meshEngine = engine
-                    
+
                     val nodeIdText = engine.localNodeId
                     val updatedNotification = createNotification("Node ID: $nodeIdText • Mesh Active")
                     val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -131,6 +144,24 @@ class MeshForegroundService : Service() {
 
                     Log.d(TAG, "Starting mesh discovery...")
                     engine.startMesh()
+
+                    // Start movement classifier (sensor-based, no Google Play Services)
+                    val classifier = MovementClassifier(applicationContext)
+                    classifier.start()
+                    movementClassifier = classifier
+
+                    // Start location broadcast manager (GPS + mesh broadcast)
+                    val broadcastManager = LocationBroadcastManager(
+                        context      = applicationContext,
+                        meshEngine   = engine,
+                        movementState = classifier.movementState
+                    )
+                    broadcastManager.start()
+                    locationBroadcastManager = broadcastManager
+
+                    // Schedule periodic 24h location history pruning
+                    LocationPruneWorker.enqueue(applicationContext)
+
                     Log.d(TAG, "MeshEngine initialized and started in ${System.currentTimeMillis() - initStartTime}ms")
                 } catch (e: Exception) {
                     Log.e(TAG, "Error initializing mesh engine in background", e)
@@ -144,6 +175,8 @@ class MeshForegroundService : Service() {
 
     override fun onDestroy() {
         try {
+            locationBroadcastManager?.stop()
+            movementClassifier?.stop()
             serviceScope.cancel()
             meshEngine?.stopMesh()
         } catch (e: Throwable) {

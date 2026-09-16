@@ -1,7 +1,12 @@
 package com.example.zerogrid.mesh.engine
 
 import android.content.Context
+import android.util.Base64
 import android.util.Log
+import com.example.zerogrid.map.data.LocationPacketCodec
+import com.example.zerogrid.map.data.PeerLocationCache
+import com.example.zerogrid.map.data.LocationRecord
+import com.example.zerogrid.map.data.ZeroGridDatabase
 import com.example.zerogrid.messaging.MessageStore
 import com.example.zerogrid.messaging.StoredMessage
 import com.example.zerogrid.mesh.transport.BleMeshDriver
@@ -103,6 +108,13 @@ class MeshEngine private constructor(private val context: Context) {
     val conversations: StateFlow<Map<String, List<StoredMessage>>> = _conversations.asStateFlow()
 
     private val scope = CoroutineScope(Dispatchers.IO)
+
+    // ---- Location Map Integration ----
+    private val database = ZeroGridDatabase.getInstance(context, localNodeId)
+    private val peerLocationCache = PeerLocationCache(database.locationHistoryDao(), scope)
+
+    /** Live map of all known peer locations, updated as LOCATION_PING packets arrive. */
+    val peerLocations: StateFlow<Map<String, LocationRecord>> = peerLocationCache.locations
 
     init {
         // Load persisted conversations from disk into memory
@@ -244,6 +256,14 @@ class MeshEngine private constructor(private val context: Context) {
         return packet
     }
 
+    /**
+     * Broadcasts a pre-built [MeshPacket] of type [PacketType.LOCATION_PING].
+     * Called by [com.example.zerogrid.map.domain.LocationBroadcastManager].
+     */
+    fun broadcastLocationPacket(packet: MeshPacket) {
+        routingEngine.sendOutboundPacket(packet)
+    }
+
     private fun handleIncomingPacket(packet: MeshPacket) {
         when (packet.type) {
             PacketType.PEER_DISCOVERY -> {
@@ -299,6 +319,21 @@ class MeshEngine private constructor(private val context: Context) {
                 if (current.none { it.packetId == packet.packetId }) {
                     current.add(packet)
                     _receivedMessages.value = current
+                }
+            }
+            PacketType.LOCATION_PING -> {
+                // Decode binary payload and update the peer location cache
+                try {
+                    val bytes = Base64.decode(packet.payload, Base64.NO_WRAP)
+                    val locationPacket = LocationPacketCodec.decode(packet.senderId, bytes)
+                    if (locationPacket != null) {
+                        peerLocationCache.update(locationPacket, packet.hopCount)
+                        Log.d(TAG, "Updated location for ${packet.senderId} via ${packet.hopCount} hops")
+                    } else {
+                        Log.w(TAG, "Failed to decode LOCATION_PING from ${packet.senderId}")
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Error processing LOCATION_PING", e)
                 }
             }
             else -> {

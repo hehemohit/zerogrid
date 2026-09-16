@@ -24,6 +24,8 @@ import androidx.compose.ui.window.DialogProperties
 import com.example.zerogrid.emergency.*
 import com.example.zerogrid.files.*
 import com.example.zerogrid.home.*
+import com.example.zerogrid.map.ui.OfflineMapScreen
+import com.example.zerogrid.map.ui.TileRegionDownloadScreen
 import com.example.zerogrid.mesh.*
 import com.example.zerogrid.mesh.engine.MeshEngine
 import com.example.zerogrid.messaging.*
@@ -103,9 +105,11 @@ fun ZeroGridApp() {
             Screen.ONBOARDING -> OnBoardingScreen(onNavigate = { navigateTo(it) })
             Screen.PERMISSIONS -> PermissionsScreen(onNavigate = { navigateTo(it) })
             Screen.CREATE_IDENTITY -> CreateIdentityScreen(onNavigate = { navigateTo(it) })
-            Screen.NETWORK_STATUS -> NetworkStatusScreen(onNavigate = { navigateTo(it) })
+            Screen.NETWORK_STATUS  -> NetworkStatusScreen(onNavigate = { navigateTo(it) })
             Screen.SECURITY_PRIVACY -> SecurityPrivacyScreen(onNavigate = { navigateTo(it) })
-            Screen.DEBUG_CONSOLE -> DebugConsoleScreen(onNavigate = { navigateTo(it) })
+            Screen.DEBUG_CONSOLE    -> DebugConsoleScreen(onNavigate = { navigateTo(it) })
+            Screen.OFFLINE_MAP      -> OfflineMapScreen(onNavigate = { navigateTo(it) })
+            Screen.DOWNLOAD_TILES   -> TileRegionDownloadScreen(onNavigate = { navigateTo(it) })
         }
 
 

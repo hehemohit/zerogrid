@@ -30,6 +30,19 @@ class MeshRoutingEngine(
 
     private val scope = CoroutineScope(Dispatchers.IO)
 
+    /**
+     * Packet priority order (highest to lowest):
+     * SOS_BEACON > DIRECT_MESSAGE / CHANNEL_BROADCAST > FILE_CHUNK > LOCATION_PING
+     *
+     * LOCATION_PING TTL is hard-capped at [MAX_LOCATION_TTL] to prevent
+     * location floods propagating across the full mesh.
+     */
+    private val MAX_LOCATION_TTL = 4
+
+    /** Approximate inbound + relay queue depth for congestion backpressure. */
+    private var _queueDepth = 0
+    fun currentQueueDepth(): Int = _queueDepth
+
     fun registerTransport(transport: MeshTransport) {
         if (!activeTransports.contains(transport)) {
             activeTransports.add(transport)
@@ -74,16 +87,24 @@ class MeshRoutingEngine(
                 "🎯 Target reached! Consuming locally: ${packet.packetId} (Type: ${packet.type}, From: ${packet.senderId})",
                 DebugLevel.INFO
             )
+            _queueDepth = (_queueDepth + 1).coerceAtMost(1000)
             scope.launch {
                 _incomingPackets.emit(packet)
+                _queueDepth = (_queueDepth - 1).coerceAtLeast(0)
             }
         }
 
         // 3. Multi-Hop Forwarding & Relay (Only forward if broadcast or not targeted to me, and TTL > 1)
-        val shouldForward = (isBroadcast || !isTargetedToMe) && (packet.ttl > 1)
+        // LOCATION_PING: hard-cap effective TTL to MAX_LOCATION_TTL to prevent mesh flooding.
+        val effectiveTtl = if (packet.type == PacketType.LOCATION_PING) {
+            packet.ttl.coerceAtMost(MAX_LOCATION_TTL)
+        } else {
+            packet.ttl
+        }
+        val shouldForward = (isBroadcast || !isTargetedToMe) && (effectiveTtl > 1)
         if (shouldForward) {
             val relayedPacket = packet.copy(
-                ttl = packet.ttl - 1,
+                ttl = effectiveTtl - 1,
                 hopCount = packet.hopCount + 1
             )
 

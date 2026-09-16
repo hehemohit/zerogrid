@@ -10,5 +10,6 @@ enum class PacketType {
     CHANNEL_BROADCAST,
     SOS_BEACON,
     FILE_CHUNK,
-    ACK
+    ACK,
+    LOCATION_PING
 }

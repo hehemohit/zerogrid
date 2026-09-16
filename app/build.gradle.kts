@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 android {
@@ -82,4 +83,18 @@ dependencies {
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
+
+    // Room (SQLite ORM)
+    implementation(libs.room.runtime)
+    implementation(libs.room.ktx)
+    ksp(libs.room.compiler)
+
+    // osmdroid (offline map rendering)
+    implementation(libs.osmdroid)
+
+    // WorkManager (background pruning)
+    implementation(libs.work.runtime.ktx)
+
+    // ViewModel for Compose (provides viewModel() composable)
+    implementation(libs.lifecycle.viewmodel.compose)
 }

@@ -72,8 +72,8 @@ fun AuthorityDashboardScreen(
                             fontFamily = FontFamily.Monospace
                         )
                         Text(
-                            text = "ZeroGrid Mesh • Official / Rescuer Mode",
-                            color = TextSecondary,
+                            text = if (userName.isNotBlank()) "Officer: $userName • Rescuer Mode" else "ZeroGrid Mesh • Official / Rescuer Mode",
+                            color = authorityAccent,
                             fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace
                         )

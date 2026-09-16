@@ -46,6 +46,15 @@ class MeshRoutingEngine(
     }
 
     fun processInboundPacket(packet: MeshPacket, sourceTransport: MeshTransport? = null) {
+        // 0. Drop locally-originated packets (loopback/echo prevention)
+        val localSuffix = localNodeId.removePrefix("NODE-")
+        if (packet.senderId.equals(localNodeId, ignoreCase = true) ||
+            packet.senderId.removePrefix("NODE-").equals(localSuffix, ignoreCase = true)
+        ) {
+            Log.d(TAG, "Dropped self packet from sender ${packet.senderId}")
+            return
+        }
+
         // 1. Deduplication Check
         if (deduplicationCache.isDuplicateAndRecord(packet.packetId)) {
             Log.d(TAG, "Dropped duplicate or locally-originated packet: ${packet.packetId}")
@@ -124,9 +133,47 @@ class MeshRoutingEngine(
         // Record local packet in deduplication cache to prevent re-processing if it returns
         deduplicationCache.isDuplicateAndRecord(packet.packetId)
 
-        Log.d(TAG, "Sending outbound packet ${packet.packetId} (Type: ${packet.type})")
+        Log.d(TAG, "Sending outbound packet ${packet.packetId} (Type: ${packet.type}) to ${packet.recipientId}")
         DebugLogger.log(TAG, "📤 Outbound ${packet.type} to ${packet.recipientId}", DebugLevel.DEBUG)
-        
+
+        val isBroadcast = packet.recipientId == MeshPacket.BROADCAST_ADDRESS || packet.recipientId == "*"
+
+        // Dynamic multi-interface evaluation for direct unicast packets
+        if (!isBroadcast) {
+            val bestRoute = com.zerogrid.mesh.app.service.MeshPeerResolver.getInstance()
+                .getBestRouteForDevice(packet.recipientId)
+
+            if (bestRoute != null) {
+                val preferredTransportName = when (bestRoute.selectedInterface) {
+                    com.zerogrid.mesh.app.service.NetworkInterfaceType.WIFI_DIRECT -> MeshNode.TRANSPORT_WIFI_DIRECT
+                    else -> MeshNode.TRANSPORT_BLE
+                }
+
+                Log.d(
+                    TAG,
+                    "Dynamic route selected for ${packet.recipientId}: $preferredTransportName " +
+                    "(RSSI=${bestRoute.rssi} dBm, score=${bestRoute.qualityScore})"
+                )
+
+                // 1. Send via preferred transport with strongest signal
+                val preferredTransport = activeTransports.firstOrNull { it.transportName == preferredTransportName && it.isRunning }
+                if (preferredTransport != null && preferredTransport.sendPacket(packet, packet.recipientId)) {
+                    Log.d(TAG, "Successfully transmitted packet ${packet.packetId} via preferred $preferredTransportName")
+                    return true
+                }
+
+                // 2. Seamlessly fallback to alternative transport if preferred fails
+                val fallbackTransports = activeTransports.filter { it.transportName != preferredTransportName && it.isRunning }
+                for (fallback in fallbackTransports) {
+                    Log.d(TAG, "Falling back to ${fallback.transportName} for packet ${packet.packetId}")
+                    if (fallback.sendPacket(packet, packet.recipientId)) {
+                        return true
+                    }
+                }
+            }
+        }
+
+        // Broadcast or fallback to all active transports
         var sentCount = 0
         activeTransports.forEach { transport ->
             if (transport.isRunning) {

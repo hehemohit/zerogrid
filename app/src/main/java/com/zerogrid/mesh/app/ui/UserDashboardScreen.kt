@@ -69,8 +69,8 @@ fun UserDashboardScreen(
                             fontFamily = FontFamily.Monospace
                         )
                         Text(
-                            text = "ZeroGrid Mesh • Regular Node Mode",
-                            color = TextSecondary,
+                            text = if (userName.isNotBlank()) "User: $userName • Mesh Node" else "ZeroGrid Mesh • Regular Node Mode",
+                            color = StatusActive,
                             fontSize = 11.sp,
                             fontFamily = FontFamily.Monospace
                         )

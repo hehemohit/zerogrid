@@ -43,6 +43,7 @@ fun PeerDirectChatScreen(
 ) {
     val context = LocalContext.current
     val meshEngine = remember { MeshEngine.getInstance(context) }
+    val messageStore = remember(context) { MessageStore.getInstance(context) }
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -53,11 +54,18 @@ fun PeerDirectChatScreen(
     // Live conversation — updates from the StateFlow as new messages arrive/are sent
     val messages = conversations[peerId] ?: emptyList()
 
-    // Resolve display name from connected peers
+    // Resolve display name from connected peers or persistent MessageStore alias cache
     val peer = connectedPeers.firstOrNull { it.nodeId == peerId }
-    val displayName = peer?.alias ?: "Peer ${peerId.takeLast(6)}"
+    val displayName = peer?.alias?.takeIf { !it.startsWith("Peer ") && it.isNotBlank() }
+        ?: messageStore.getPeerDisplayName(peerId)
     val isOnline = peer != null
-    val hopInfo = peer?.let { "${it.hopDistance} hop${if (it.hopDistance != 1) "s" else ""}" } ?: "Offline"
+    val hopInfo = peer?.let {
+        if (it.isMultiInterface()) {
+            "BLE + Wi-Fi • ${it.getBestSignalRssi()}dBm"
+        } else {
+            "${it.transportType} • ${it.rssi}dBm"
+        }
+    } ?: "Offline"
 
     val listState = rememberLazyListState()
 

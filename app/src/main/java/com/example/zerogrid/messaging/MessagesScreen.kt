@@ -45,13 +45,46 @@ fun MessagesScreen(
     val receivedMessages by meshEngine.receivedMessages.collectAsState()
 
     val channelMessages = receivedMessages.filter { it.recipientId == "*" }
-    val peerCount = connectedPeers.size
+
+    val localNodeId = meshEngine.localNodeId
+    val localSuffix = remember(localNodeId) { localNodeId.removePrefix("NODE-") }
+    val localDisplayName by meshEngine.displayName.collectAsState()
+
+    val filteredPeers = remember(connectedPeers, localNodeId, localDisplayName) {
+        connectedPeers.filter { node ->
+            !node.nodeId.equals(localNodeId, ignoreCase = true) &&
+            !node.nodeId.removePrefix("NODE-").equals(localSuffix, ignoreCase = true) &&
+            !node.alias.equals(localDisplayName, ignoreCase = true) &&
+            !node.alias.equals(android.os.Build.MODEL, ignoreCase = true)
+        }
+    }
+
+    // Split peers by transport for separate display sections
+    val blePeers = remember(filteredPeers) {
+        filteredPeers
+            .filter { it.availableTransports.contains(MeshNode.TRANSPORT_BLE) || it.transportType == MeshNode.TRANSPORT_BLE }
+            .distinctBy { it.alias.lowercase() }
+    }
+    val wifiPeers = remember(filteredPeers) {
+        filteredPeers
+            .filter { it.availableTransports.contains(MeshNode.TRANSPORT_WIFI_DIRECT) || it.transportType == MeshNode.TRANSPORT_WIFI_DIRECT }
+            .distinctBy { it.alias.lowercase() }
+    }
+    val peerCount = filteredPeers.distinctBy { it.alias.lowercase() }.size
     val activeAlertCount = sosAlerts.size
 
-    // Peer IDs that have at least one persisted message (DM history)
-    val dmPeerIds = remember(conversations) {
+    // Peer IDs that have at least one persisted message (DM history), strictly excluding self device
+    val dmPeerIds = remember(conversations, localNodeId, localDisplayName) {
         conversations.entries
             .filter { it.value.isNotEmpty() }
+            .filter { entry ->
+                val peerId = entry.key
+                val alias = meshEngine.getPeerDisplayName(peerId)
+                !peerId.equals(localNodeId, ignoreCase = true) &&
+                !peerId.removePrefix("NODE-").equals(localSuffix, ignoreCase = true) &&
+                !alias.equals(localDisplayName, ignoreCase = true) &&
+                !alias.equals(android.os.Build.MODEL, ignoreCase = true)
+            }
             .sortedByDescending { it.value.last().timestamp }
             .map { it.key }
     }
@@ -80,72 +113,27 @@ fun MessagesScreen(
             MessageFilterChipsRow(selected = selectedFilter, onSelected = { selectedFilter = it })
             Spacer(modifier = Modifier.height(20.dp))
 
-            // ── ACTIVE DEVICES PANEL ──────────────────────────────────────────
+            // ── BLUETOOTH PEERS ───────────────────────────────────────────────
             if (selectedFilter == "All" || selectedFilter == "Private") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "ACTIVE DEVICES",
-                        color = TextSecondary,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "$peerCount online",
-                        color = if (peerCount > 0) StatusActive else TextSecondary,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(modifier = Modifier.height(10.dp))
+                TransportPeerSection(
+                    label = "BLUETOOTH PEERS",
+                    icon = Icons.Outlined.Bluetooth,
+                    iconTint = Color(0xFF7C9FFF),
+                    peers = blePeers,
+                    emptyHint = "No BLE peers in range",
+                    onPeerClick = { peer -> onOpenPeerChat?.invoke(peer.nodeId) }
+                )
+                Spacer(modifier = Modifier.height(16.dp))
 
-                if (connectedPeers.isEmpty()) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(containerColor = CardBackground),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(20.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.WifiOff,
-                                contentDescription = null,
-                                tint = TextSecondary,
-                                modifier = Modifier.size(18.dp)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "No devices in range — scanning...",
-                                color = TextSecondary,
-                                fontSize = 13.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-                    }
-                } else {
-                    LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        contentPadding = PaddingValues(horizontal = 2.dp)
-                    ) {
-                        items(connectedPeers, key = { it.nodeId }) { peer ->
-                            ActiveDeviceCard(
-                                peer = peer,
-                                onClick = { onOpenPeerChat?.invoke(peer.nodeId) }
-                            )
-                        }
-                    }
-                }
-
+            // ── WI-FI PEERS ───────────────────────────────────────────────────
+                TransportPeerSection(
+                    label = "WI-FI PEERS",
+                    icon = Icons.Outlined.Wifi,
+                    iconTint = Color(0xFF4ECDC4),
+                    peers = wifiPeers,
+                    emptyHint = "No Wi-Fi peers in range",
+                    onPeerClick = { peer -> onOpenPeerChat?.invoke(peer.nodeId) }
+                )
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
@@ -182,7 +170,7 @@ fun MessagesScreen(
                 DirectMessagesSection(
                     dmPeerIds = dmPeerIds,
                     conversations = conversations,
-                    connectedPeers = connectedPeers,
+                    connectedPeers = filteredPeers,
                     onOpenChat = { peerId -> onOpenPeerChat?.invoke(peerId) }
                 )
             }
@@ -192,20 +180,163 @@ fun MessagesScreen(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TRANSPORT-SEGREGATED PEER SECTIONS
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun TransportPeerSection(
+    label: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
+    peers: List<MeshNode>,
+    emptyHint: String,
+    onPeerClick: (MeshNode) -> Unit
+) {
+    // Section header
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = iconTint,
+            modifier = Modifier.size(13.dp)
+        )
+        Text(
+            text = label,
+            color = iconTint,
+            fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = if (peers.isEmpty()) "offline" else "${peers.size} online",
+            color = if (peers.isEmpty()) TextSecondary else iconTint,
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace
+        )
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+
+    if (peers.isEmpty()) {
+        // Empty state — subtle single-line hint
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(CardBackground, RoundedCornerShape(8.dp))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(7.dp)
+                    .background(TextSecondary.copy(alpha = 0.4f), CircleShape)
+            )
+            Text(
+                text = emptyHint,
+                color = TextSecondary,
+                fontSize = 12.sp,
+                fontFamily = FontFamily.Monospace
+            )
+        }
+    } else {
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(horizontal = 2.dp)
+        ) {
+            items(peers, key = { it.nodeId }) { peer ->
+                PeerNameChip(
+                    peer = peer,
+                    accentColor = iconTint,
+                    onClick = { onPeerClick(peer) }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PeerNameChip(
+    peer: MeshNode,
+    accentColor: Color,
+    onClick: () -> Unit
+) {
+    val initial = peer.alias.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+    Row(
+        modifier = Modifier
+            .background(CardBackground, RoundedCornerShape(10.dp))
+            .border(1.dp, DividerColor, RoundedCornerShape(10.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Avatar circle with initial
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .background(accentColor.copy(alpha = 0.15f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = initial,
+                color = accentColor,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Column {
+            Text(
+                text = peer.alias,
+                color = TextPrimary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = FontFamily.Monospace,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .background(Color(0xFF4CAF50), CircleShape)
+                )
+                Text(
+                    text = "online",
+                    color = Color(0xFF4CAF50),
+                    fontSize = 10.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Composable
 private fun ActiveDeviceCard(peer: MeshNode, onClick: () -> Unit) {
     val initial = peer.alias.firstOrNull()?.uppercaseChar()?.toString() ?: "?"
+    val isMulti = peer.isMultiInterface()
     val isDirectBle = peer.transportType == MeshNode.TRANSPORT_BLE
-    val transportIcon = if (isDirectBle) Icons.Outlined.Bluetooth else Icons.Outlined.Wifi
+    val effectiveRssi = peer.getBestSignalRssi() ?: peer.rssi
     val signalColor = when {
-        peer.rssi >= -60 -> Color(0xFF4CAF50)
-        peer.rssi >= -80 -> StatusActive
+        effectiveRssi >= -60 -> Color(0xFF4CAF50)
+        effectiveRssi >= -80 -> StatusActive
         else -> Color(0xFFFF9800)
     }
 
     Card(
         modifier = Modifier
-            .width(100.dp)
+            .width(115.dp)
             .border(1.dp, DividerColor, RoundedCornerShape(14.dp))
             .clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -238,7 +369,7 @@ private fun ActiveDeviceCard(peer: MeshNode, onClick: () -> Unit) {
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = peer.alias.take(10),
+                text = peer.alias,
                 color = TextPrimary,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
@@ -251,10 +382,27 @@ private fun ActiveDeviceCard(peer: MeshNode, onClick: () -> Unit) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
-                Icon(imageVector = transportIcon, contentDescription = null, tint = signalColor, modifier = Modifier.size(10.dp))
-                Text(text = "${peer.rssi}dBm", color = signalColor, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+                if (isMulti) {
+                    Icon(imageVector = Icons.Outlined.Bluetooth, contentDescription = null, tint = signalColor, modifier = Modifier.size(10.dp))
+                    Icon(imageVector = Icons.Outlined.Wifi, contentDescription = null, tint = signalColor, modifier = Modifier.size(10.dp))
+                } else if (isDirectBle) {
+                    Icon(imageVector = Icons.Outlined.Bluetooth, contentDescription = null, tint = signalColor, modifier = Modifier.size(10.dp))
+                } else {
+                    Icon(imageVector = Icons.Outlined.Wifi, contentDescription = null, tint = signalColor, modifier = Modifier.size(10.dp))
+                }
+                Text(text = "${effectiveRssi}dBm", color = signalColor, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
             }
-            Spacer(modifier = Modifier.height(8.dp))
+            if (isMulti) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "BLE+Wi-Fi",
+                    color = StatusActive,
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+            Spacer(modifier = Modifier.height(6.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -426,12 +574,15 @@ private fun DirectMessagesSection(
             }
         }
     } else {
+        val context = LocalContext.current
+        val messageStore = remember(context) { MessageStore.getInstance(context) }
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             dmPeerIds.forEach { peerId ->
                 val msgs = conversations[peerId] ?: emptyList()
                 val lastMsg = msgs.lastOrNull() ?: return@forEach
                 val peer = connectedPeers.firstOrNull { it.nodeId == peerId }
-                val name = peer?.alias ?: "Peer ${peerId.takeLast(6)}"
+                val name = peer?.alias?.takeIf { !it.startsWith("Peer ") && it.isNotBlank() }
+                    ?: messageStore.getPeerDisplayName(peerId)
                 val isOnline = peer != null
                 val unread = msgs.count { !it.isMine }
                 val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(lastMsg.timestamp)
@@ -456,7 +607,7 @@ private fun DirectMessagesSection(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = name.first().uppercaseChar().toString(),
+                                text = name.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
                                 color = TextPrimary,
                                 fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold

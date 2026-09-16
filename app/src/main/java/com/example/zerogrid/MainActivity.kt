@@ -20,56 +20,74 @@ import com.example.zerogrid.navigation.ZeroGridApp
 import com.example.zerogrid.service.MeshForegroundService
 import com.example.zerogrid.ui.theme.ZeroGridTheme
 import com.zerogrid.mesh.app.ui.*
+import com.zerogrid.mesh.app.ui.navigation.AppScreen
 
 @Composable
 fun MainAppGateway() {
     val context = LocalContext.current
     val sessionManager = remember { UserSessionManager.getInstance(context) }
 
-    var currentRoute by remember { mutableStateOf(AppRoute.ROUTE_ROLE_SELECTION) }
+    var currentScreen by remember { mutableStateOf<AppScreen>(AppScreen.RoleSelection) }
     var currentUserName by remember { mutableStateOf(sessionManager.getUserName()) }
     var showFullMeshApp by remember { mutableStateOf(false) }
 
     // Hardware and gesture back handling
-    BackHandler(enabled = (currentRoute != AppRoute.ROUTE_ROLE_SELECTION || showFullMeshApp)) {
+    BackHandler(enabled = (currentScreen != AppScreen.RoleSelection || showFullMeshApp)) {
         if (showFullMeshApp) {
             showFullMeshApp = false
         } else {
-            currentRoute = AppRoute.ROUTE_ROLE_SELECTION
+            when (currentScreen) {
+                is AppScreen.NameEntry -> currentScreen = AppScreen.RoleSelection
+                AppScreen.UserDashboard -> currentScreen = AppScreen.RoleSelection
+                AppScreen.AuthorityDashboard -> currentScreen = AppScreen.RoleSelection
+                AppScreen.RoleSelection -> { /* At root */ }
+            }
         }
     }
 
     if (showFullMeshApp) {
         ZeroGridApp()
     } else {
-        when (currentRoute) {
-            AppRoute.ROUTE_ROLE_SELECTION -> {
+        when (val screen = currentScreen) {
+            AppScreen.RoleSelection -> {
                 RoleSelectionScreen(
-                    onRoleSelected = { role, name ->
-                        currentUserName = name
-                        currentRoute = when (role) {
-                            UserRole.CITIZEN -> AppRoute.ROUTE_USER_DASHBOARD
-                            UserRole.AUTHORITY -> AppRoute.ROUTE_AUTHORITY_DASHBOARD
-                        }
+                    onSelectRole = { isAuthority ->
+                        currentScreen = AppScreen.NameEntry(isAuthority = isAuthority)
                     }
                 )
             }
-            AppRoute.ROUTE_USER_DASHBOARD -> {
+            is AppScreen.NameEntry -> {
+                NameEntryScreen(
+                    isAuthority = screen.isAuthority,
+                    onNameConfirmed = { name ->
+                        currentUserName = name
+                        currentScreen = if (screen.isAuthority) {
+                            AppScreen.AuthorityDashboard
+                        } else {
+                            AppScreen.UserDashboard
+                        }
+                    },
+                    onBack = {
+                        currentScreen = AppScreen.RoleSelection
+                    }
+                )
+            }
+            AppScreen.UserDashboard -> {
                 UserDashboardScreen(
                     userName = currentUserName,
                     onBackToRoles = {
-                        currentRoute = AppRoute.ROUTE_ROLE_SELECTION
+                        currentScreen = AppScreen.RoleSelection
                     },
                     onOpenFullMeshApp = {
                         showFullMeshApp = true
                     }
                 )
             }
-            AppRoute.ROUTE_AUTHORITY_DASHBOARD -> {
+            AppScreen.AuthorityDashboard -> {
                 AuthorityDashboardScreen(
                     userName = currentUserName,
                     onBackToRoles = {
-                        currentRoute = AppRoute.ROUTE_ROLE_SELECTION
+                        currentScreen = AppScreen.RoleSelection
                     },
                     onOpenFullMeshApp = {
                         showFullMeshApp = true

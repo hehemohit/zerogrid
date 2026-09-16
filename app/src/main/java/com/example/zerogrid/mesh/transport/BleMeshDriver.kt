@@ -34,6 +34,7 @@ import com.example.zerogrid.mesh.engine.MeshPacket
 import com.example.zerogrid.mesh.engine.PacketType
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -43,6 +44,7 @@ import kotlinx.coroutines.sync.Mutex
 import java.nio.ByteBuffer
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -68,6 +70,9 @@ class BleMeshDriver(
 
         /** Shared service UUID — identical on all ZeroGrid devices. */
         val SERVICE_UUID: UUID = UUID.fromString("0000a701-0000-1000-8000-00805f9b34fb")
+
+        /** Service UUID used in scan response to broadcast custom display name without GATT connection. */
+        val NAME_SERVICE_UUID: UUID = UUID.fromString("0000a704-0000-1000-8000-00805f9b34fb")
 
         /** Client writes TO this characteristic on the server (client->server direction). */
         val WRITE_CHAR_UUID: UUID = UUID.fromString("0000a702-0000-1000-8000-00805f9b34fb")
@@ -232,14 +237,33 @@ class BleMeshDriver(
     private var gattServer: BluetoothGattServer? = null
     private var isScanning = false
 
+    /** Tracks the timestamp of the last successful startScan() call to enforce 5-second cooldown. */
+    private val lastScanStartTime = AtomicLong(0L)
+
+    /**
+     * Serialized GATT send queue — one coroutine worker drains this sequentially.
+     * Each item is a pair of (BluetoothDevice, serialized packet bytes).
+     * This eliminates concurrent GATT storms that cause status=147 and scan rate limiting.
+     */
+    private data class GattSendJob(val device: BluetoothDevice, val transmissionId: UUID, val data: ByteArray)
+    private val gattSendQueue = Channel<GattSendJob>(capacity = Channel.UNLIMITED)
+
     private val scope = CoroutineScope(Dispatchers.IO)
 
     init {
         DebugLogger.log(TAG, "BleMeshDriver initialized for node $localNodeId", DebugLevel.INFO)
+        // Start the single serial GATT send worker
+        scope.launch { gattSendWorker() }
     }
 
     fun updateDisplayName(name: String) {
         localDisplayName = name
+        if (isRunning) {
+            try {
+                stopAdvertising()
+                startAdvertising()
+            } catch (_: Exception) {}
+        }
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -327,6 +351,19 @@ class BleMeshDriver(
                 peerMtus.remove(address)
                 peerReady.remove(address)
                 try { gatt.close() } catch (_: Exception) {}
+
+                // status=147 means the remote device rejected our connection (usually stale RPA).
+                // Evict ALL cached entries for this address so we don't retry with a dead MAC.
+                // The scanner will re-populate with the fresh RPA on next advertisement.
+                if (status == 147) {
+                    discoveredDevices.remove(address)
+                    val nodeId = addressToNodeMap.remove(address)
+                    if (nodeId != null) {
+                        nodeToDeviceMap.remove(nodeId)
+                        discoveredDevices.remove(nodeId)
+                        DebugLogger.log(TAG, "Evicted stale RPA $address (was $nodeId) — waiting for fresh scan result", DebugLevel.WARN)
+                    }
+                }
             }
         }
 
@@ -487,8 +524,14 @@ class BleMeshDriver(
                 return@launch
             }
 
-            DebugLogger.log(TAG, "📤 Sending ${packet.type} packet [${payloadBytes.size}B] to ${targets.size} peer(s)", DebugLevel.INFO)
-            targets.forEach { device -> transmitToDevice(device, transmissionId, payloadBytes) }
+            // Deduplicate targets by MAC address — prevents sending to multiple stale RPAs
+            // that all resolve to the same physical device in nodeToDeviceMap.
+            val deduped = targets.distinctBy { it.address }
+            DebugLogger.log(TAG, "📤 Sending ${packet.type} packet [${payloadBytes.size}B] to ${deduped.size} peer(s)", DebugLevel.INFO)
+            // Enqueue jobs into the serialized worker — no concurrent GATT connections
+            deduped.forEach { device ->
+                gattSendQueue.trySend(GattSendJob(device, transmissionId, payloadBytes))
+            }
         }
         return true
     }
@@ -507,25 +550,53 @@ class BleMeshDriver(
         return all.values.toList()
     }
 
+    /**
+     * Serial GATT send worker — runs as a single coroutine.
+     * Drains [gattSendQueue] one job at a time, ensuring only one GATT connection
+     * attempt is in-flight at any moment. This eliminates:
+     * - Concurrent connection storms causing status=147
+     * - Multiple simultaneous startScan() calls triggering rate limiting
+     */
+    private suspend fun gattSendWorker() {
+        for (job in gattSendQueue) {
+            if (!isRunning) break
+            try {
+                transmitToDevice(job.device, job.transmissionId, job.data)
+            } catch (e: Exception) {
+                DebugLogger.log(TAG, "gattSendWorker error: ${e.message}", DebugLevel.ERROR)
+            }
+        }
+    }
+
     @SuppressLint("MissingPermission")
     private suspend fun transmitToDevice(device: BluetoothDevice, transmissionId: UUID, data: ByteArray) {
         val address = device.address
 
-        // ── PATH A: We are already connected as CLIENT ────────────────────────
+        // Guard: if we already evicted this address due to stale RPA (status=147), skip entirely
+        if (!discoveredDevices.containsKey(address) && !serverConnectedDevices.containsKey(address) && activeGatts[address] == null) {
+            DebugLogger.log(TAG, "Skipping stale evicted address $address — awaiting fresh scan", DebugLevel.WARN)
+            return
+        }
+
+        // ── PATH A: Peer connected TO OUR SERVER — notify back (no outbound connect needed) ────
+        val serverDevice = serverConnectedDevices[address]
+        if (serverDevice != null && notifyEnabledPeers[address] == true) {
+            sendNotifyToServerPeer(serverDevice, transmissionId, data)
+            return
+        }
+
+        // ── PATH B: Already connected as CLIENT ──────────────────────────────
         val clientGatt = activeGatts[address]
         if (clientGatt != null && peerReady[address] == true) {
             transmitViaWrite(clientGatt, address, transmissionId, data)
             return
         }
 
-        // ── PATH B: Stale handle cleanup & Connect ─────────────────────────────
+        // ── PATH C: New client connection ────────────────────────────────────
         activeGatts.remove(address)?.let { stale ->
             try { stale.close() } catch (_: Exception) {}
         }
         peerReady.remove(address)
-
-        // Pause scanning momentarily to prevent radio controller contention (Status 147 fix)
-        pauseScanningForConnect()
 
         DebugLogger.log(TAG, "Connecting to $address as GATT client", DebugLevel.INFO)
         DebugLogger.updatePeerState(address) { copy(connectionStage = "CONNECTING") }
@@ -534,11 +605,10 @@ class BleMeshDriver(
             device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
         } catch (e: Exception) {
             DebugLogger.log(TAG, "connectGatt exception for $address: ${e.message}", DebugLevel.ERROR)
-            resumeScanningAfterConnect()
             return
         }
 
-        // Wait for connection
+        // Wait for connection (max 4 seconds)
         var retries = 0
         while (activeGatts[address] == null && retries < CONNECT_WAIT_RETRIES) {
             delay(100.milliseconds)
@@ -548,11 +618,14 @@ class BleMeshDriver(
         if (activeGatts[address] == null) {
             DebugLogger.log(TAG, "Connection timeout to $address (${retries * 100}ms)", DebugLevel.ERROR)
             DebugLogger.updatePeerState(address) { copy(connectionStage = "CONNECT_TIMEOUT", lastError = "timeout") }
-            resumeScanningAfterConnect()
+            // Evict on timeout too — same RPA issue, let scanner refresh
+            discoveredDevices.remove(address)
+            val nodeId = addressToNodeMap.remove(address)
+            if (nodeId != null) { nodeToDeviceMap.remove(nodeId); discoveredDevices.remove(nodeId) }
             return
         }
 
-        // Wait for services + MTU + CCCD handshake
+        // Wait for services + MTU + CCCD handshake (max 6 seconds)
         retries = 0
         while (peerReady[address] != true && retries < READY_WAIT_RETRIES) {
             delay(100.milliseconds)
@@ -567,6 +640,45 @@ class BleMeshDriver(
 
         val connectedGatt = activeGatts[address] ?: newGatt
         transmitViaWrite(connectedGatt, address, transmissionId, data)
+    }
+
+    /**
+     * Send data back to a peer that connected to OUR GATT server via BLE notifications.
+     * This avoids needing to open a reverse client connection to that peer.
+     */
+    @SuppressLint("MissingPermission")
+    private suspend fun sendNotifyToServerPeer(device: BluetoothDevice, transmissionId: UUID, data: ByteArray) {
+        val address = device.address
+        val server = gattServer ?: return
+        val mtu = peerMtus[address] ?: 185
+        val maxPayload = mtu - 3 - BleFrame.HEADER_SIZE
+        if (maxPayload <= 0) return
+
+        val notifyChar = server.getService(SERVICE_UUID)?.getCharacteristic(NOTIFY_CHAR_UUID) ?: return
+        val totalFrames = (data.size + maxPayload - 1) / maxPayload
+        var offset = 0; var sequence = 0
+        while (offset < data.size) {
+            val chunkSize = minOf(maxPayload, data.size - offset)
+            val chunk = data.copyOfRange(offset, offset + chunkSize)
+            val flags = when {
+                totalFrames == 1 -> BleFrame.FLAG_SINGLE
+                offset == 0 -> BleFrame.FLAG_START
+                offset + chunkSize >= data.size -> BleFrame.FLAG_END
+                else -> BleFrame.FLAG_MIDDLE
+            }
+            val frameBytes = BleFrame(transmissionId, sequence++, flags, chunk).toBytes()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                server.notifyCharacteristicChanged(device, notifyChar, false, frameBytes)
+            } else {
+                @Suppress("DEPRECATION")
+                notifyChar.value = frameBytes
+                @Suppress("DEPRECATION")
+                server.notifyCharacteristicChanged(device, notifyChar, false)
+            }
+            delay(20.milliseconds) // Small inter-frame delay for GATT notify flow control
+            offset += chunkSize
+        }
+        DebugLogger.log(TAG, "✅ Notified server peer $address: ${data.size}B in $totalFrames frame(s)", DebugLevel.INFO)
     }
 
     @SuppressLint("MissingPermission")
@@ -772,6 +884,12 @@ class BleMeshDriver(
     }
 
     private fun onPacketReceived(packet: MeshPacket, sourceAddress: String) {
+        val localSuffix = localNodeId.removePrefix("NODE-")
+        if (packet.senderId.equals(localNodeId, ignoreCase = true) ||
+            packet.senderId.removePrefix("NODE-").equals(localSuffix, ignoreCase = true)) {
+            return
+        }
+
         DebugLogger.log(TAG, "📬 Packet reassembled: type=${packet.type} from=${packet.senderId}", DebugLevel.INFO)
 
         // Dynamic routing update: map sender's logical NodeID to the fresh BluetoothDevice handle
@@ -784,15 +902,24 @@ class BleMeshDriver(
 
         // Handle PEER_DISCOVERY announcement
         if (packet.type == PacketType.PEER_DISCOVERY) {
-            val peerAlias = if (packet.payload.isNotBlank()) packet.payload else "Peer ${packet.senderId.takeLast(4)}"
+            val peerAlias = if (packet.payload.isNotBlank()) packet.payload.trim() else "Peer ${packet.senderId.takeLast(4)}"
+            com.zerogrid.mesh.app.service.MeshPeerResolver.getInstance().recordEndpoint(
+                uniqueDeviceId = packet.senderId,
+                interfaceType = com.zerogrid.mesh.app.service.NetworkInterfaceType.BLUETOOTH_LE,
+                address = sourceAddress,
+                rssi = -35,
+                metadata = mapOf("alias" to peerAlias)
+            )
             val peerNode = MeshNode(
                 nodeId = packet.senderId,
                 alias = peerAlias,
-                rssi = -30,
+                rssi = -35,
                 transportType = MeshNode.TRANSPORT_BLE,
+                bleRssi = -35,
                 lastSeenTimestamp = System.currentTimeMillis(),
                 hopDistance = 1,
-                isDirectNeighbor = true
+                isDirectNeighbor = true,
+                availableTransports = mutableSetOf(MeshNode.TRANSPORT_BLE)
             )
             scope.launch { _peerDiscoveryFlow.emit(peerNode) }
         }
@@ -831,7 +958,14 @@ class BleMeshDriver(
                 .addServiceData(ParcelUuid(SERVICE_UUID), nodeSuffixBytes)
                 .build()
 
-            bleAdvertiser?.startAdvertising(settings, data, advertiseCallback)
+            // Broadcast user's custom display name in scan response data
+            val cleanName = localDisplayName.trim().take(20).toByteArray(Charsets.UTF_8)
+            val scanResponseData = AdvertiseData.Builder()
+                .setIncludeDeviceName(false)
+                .addServiceData(ParcelUuid(NAME_SERVICE_UUID), cleanName)
+                .build()
+
+            bleAdvertiser?.startAdvertising(settings, data, scanResponseData, advertiseCallback)
         } catch (e: Exception) {
             DebugLogger.log(TAG, "Error starting BLE advertising: ${e.message}", DebugLevel.ERROR)
         }
@@ -845,6 +979,14 @@ class BleMeshDriver(
     @SuppressLint("MissingPermission")
     private fun startScanning() {
         if (isScanning) return
+        // Rate-limit guard: Android allows max 5 scan starts within 30 seconds.
+        // We enforce a 5-second minimum cooldown between startScan() calls.
+        val now = System.currentTimeMillis()
+        val elapsed = now - lastScanStartTime.get()
+        if (elapsed < 5_000L) {
+            DebugLogger.log(TAG, "Scan cooldown active (${elapsed}ms elapsed) — skipping startScan", DebugLevel.DEBUG)
+            return
+        }
         try {
             bleScanner = bluetoothAdapter?.bluetoothLeScanner ?: return
             val filter = ScanFilter.Builder()
@@ -855,6 +997,7 @@ class BleMeshDriver(
                 .build()
             bleScanner?.startScan(listOf(filter), settings, scanCallback)
             isScanning = true
+            lastScanStartTime.set(System.currentTimeMillis())
             DebugLogger.log(TAG, "BLE scan started — filtering for SERVICE_UUID $SERVICE_UUID", DebugLevel.INFO)
         } catch (e: Exception) {
             DebugLogger.log(TAG, "Error starting BLE scan: ${e.message}", DebugLevel.ERROR)
@@ -871,15 +1014,11 @@ class BleMeshDriver(
     }
 
     private fun pauseScanningForConnect() {
-        if (isScanning) {
-            stopScanning()
-        }
+        // No-op: scan rate limiting is handled by startScanning() cooldown guard
     }
 
     private fun resumeScanningAfterConnect() {
-        if (isRunning && !isScanning) {
-            startScanning()
-        }
+        // No-op: scan runs continuously; individual GATT errors no longer restart the scanner
     }
 
     private val advertiseCallback = object : AdvertiseCallback() {
@@ -900,10 +1039,33 @@ class BleMeshDriver(
                     val deviceName = try { device.name } catch (_: SecurityException) { null } ?: "Peer"
                     val deviceAddress = try { device.address } catch (_: SecurityException) { null } ?: return
 
+                    // Extract advertised custom display name from scan response
+                    val nameData = scanResult.scanRecord?.getServiceData(ParcelUuid(NAME_SERVICE_UUID))
+                    val advertisedName = if (nameData != null && nameData.isNotEmpty()) String(nameData, Charsets.UTF_8).trim() else ""
+
                     // Extract advertised NodeID from ServiceData
                     val sData = scanResult.scanRecord?.getServiceData(ParcelUuid(SERVICE_UUID))
                     val nodeSuffix = if (sData != null && sData.isNotEmpty()) String(sData, Charsets.UTF_8) else ""
                     val logicalNodeId = if (nodeSuffix.isNotEmpty()) "NODE-$nodeSuffix" else deviceAddress
+
+                    // CRITICAL: Filter out own device's BLE advertisements!
+                    val localSuffix = localNodeId.removePrefix("NODE-")
+                    if (nodeSuffix.isNotBlank() && nodeSuffix.equals(localSuffix, ignoreCase = true)) {
+                        return // Own node suffix advertisement
+                    }
+                    if (logicalNodeId.equals(localNodeId, ignoreCase = true) || logicalNodeId.equals(localSuffix, ignoreCase = true)) {
+                        return // Own logical node
+                    }
+                    if (advertisedName.isNotBlank() && advertisedName.equals(localDisplayName, ignoreCase = true)) {
+                        return // Own display name
+                    }
+                    if (deviceName.isNotBlank() && (deviceName.equals(localDisplayName, ignoreCase = true) || deviceName.equals(android.os.Build.MODEL, ignoreCase = true))) {
+                        return // Own device name or model
+                    }
+                    val myBtAddress = try { bluetoothAdapter?.address } catch (_: SecurityException) { null }
+                    if (myBtAddress != null && myBtAddress != "02:00:00:00:00:00" && deviceAddress.equals(myBtAddress, ignoreCase = true)) {
+                        return // Own hardware MAC address
+                    }
 
                     // Always update mapping to the freshest BluetoothDevice handle (RPA rotation fix)
                     nodeToDeviceMap[logicalNodeId] = device
@@ -911,8 +1073,20 @@ class BleMeshDriver(
                     discoveredDevices[deviceAddress] = device
                     discoveredDevices[logicalNodeId] = device
 
-                    val alias = if (deviceName.isNotBlank() && deviceName != "Peer")
-                        deviceName else "Peer ${logicalNodeId.takeLast(4)}"
+                    val alias = when {
+                        advertisedName.isNotBlank() -> advertisedName
+                        deviceName.isNotBlank() && deviceName != "Peer" -> deviceName
+                        else -> "Peer ${logicalNodeId.takeLast(4)}"
+                    }
+
+                    // Record endpoint in background interface deduplication engine
+                    com.zerogrid.mesh.app.service.MeshPeerResolver.getInstance().recordEndpoint(
+                        uniqueDeviceId = logicalNodeId,
+                        interfaceType = com.zerogrid.mesh.app.service.NetworkInterfaceType.BLUETOOTH_LE,
+                        address = deviceAddress,
+                        rssi = rssi,
+                        metadata = mapOf("alias" to alias)
+                    )
 
                     DebugLogger.log(TAG, "🔭 BLE peer found: $logicalNodeId ($alias) RSSI=$rssi", DebugLevel.DEBUG)
 
@@ -921,9 +1095,11 @@ class BleMeshDriver(
                         alias = alias,
                         rssi = rssi,
                         transportType = MeshNode.TRANSPORT_BLE,
+                        bleRssi = rssi,
                         lastSeenTimestamp = System.currentTimeMillis(),
                         hopDistance = 1,
-                        isDirectNeighbor = true
+                        isDirectNeighbor = true,
+                        availableTransports = mutableSetOf(MeshNode.TRANSPORT_BLE)
                     )
                     scope.launch { _peerDiscoveryFlow.emit(peerNode) }
                 } catch (e: Exception) {

@@ -128,6 +128,15 @@ class MessageStore private constructor(context: Context) {
         }
     }
 
+    /** Permanently deletes a peer conversation and associated alias from local storage. */
+    fun deleteConversation(peerId: String) {
+        try {
+            prefs.edit().remove("$CONV_KEY_PREFIX$peerId").remove("alias_$peerId").apply()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error deleting conversation for $peerId", e)
+        }
+    }
+
     /**
      * Load all peer IDs that have at least one stored message.
      * Returns them ordered by the timestamp of the most recent message (newest first).
@@ -151,6 +160,32 @@ class MessageStore private constructor(context: Context) {
 
     /** Get last message for a peer (for preview in DM list). */
     fun getLastMessage(peerId: String): StoredMessage? = getConversation(peerId).lastOrNull()
+
+    /** Persistently save a peer's custom display name. */
+    fun savePeerAlias(peerId: String, alias: String) {
+        if (alias.isBlank()) return
+        if (alias.startsWith("Peer ") || alias == "Peer" || alias.startsWith("Android_") || alias.startsWith("Wi-Fi ")) return
+        if (alias.contains(":") && alias.length >= 17) return
+        try {
+            prefs.edit().putString("alias_$peerId", alias.trim()).apply()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error saving alias for $peerId", e)
+        }
+    }
+
+    /** Retrieve a peer's saved custom display name if known. */
+    fun getPeerAlias(peerId: String): String? {
+        val saved = prefs.getString("alias_$peerId", null)
+        return if (!saved.isNullOrBlank()) saved else null
+    }
+
+    /** Returns the best display name for a peer (custom display name if known, else short Node ID). */
+    fun getPeerDisplayName(peerId: String): String {
+        val saved = getPeerAlias(peerId)
+        if (!saved.isNullOrBlank()) return saved
+        val shortId = if (peerId.startsWith("NODE-")) peerId.removePrefix("NODE-").take(6) else peerId.takeLast(6)
+        return "Peer $shortId"
+    }
 }
 
 enum class MessageStatus {

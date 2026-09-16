@@ -67,7 +67,7 @@ class MeshEngine private constructor(private val context: Context) {
     }
 
     val localNodeId: String = getOrGenerateLocalNodeId(context)
-    private val peerTable = PeerTable()
+    private val peerTable = PeerTable(localNodeId)
     private val routingEngine = MeshRoutingEngine(localNodeId)
     private val messageStore = MessageStore.getInstance(context)
 
@@ -75,7 +75,7 @@ class MeshEngine private constructor(private val context: Context) {
     val displayName: StateFlow<String> = _displayName.asStateFlow()
 
     private val bleDriver: BleMeshDriver = BleMeshDriver(context, localNodeId, _displayName.value)
-    private val wifiDirectDriver: WifiDirectMeshDriver = WifiDirectMeshDriver(context, localNodeId)
+    private val wifiDirectDriver: WifiDirectMeshDriver = WifiDirectMeshDriver(context, localNodeId, _displayName.value)
 
     private val transports = listOf(bleDriver, wifiDirectDriver)
 
@@ -107,12 +107,24 @@ class MeshEngine private constructor(private val context: Context) {
     private val scope = CoroutineScope(Dispatchers.IO)
 
     init {
-        // Load persisted conversations from disk into memory
+        com.zerogrid.mesh.app.service.MeshPeerResolver.getInstance().setLocalNodeId(localNodeId)
+
+        // Load persisted conversations from disk into memory, purging any accidental self conversations
         scope.launch {
             val allPeerIds = messageStore.getAllConversationPeerIds()
             val loaded = mutableMapOf<String, List<StoredMessage>>()
+            val localSuffix = localNodeId.removePrefix("NODE-")
             allPeerIds.forEach { peerId ->
-                loaded[peerId] = messageStore.getConversation(peerId)
+                val alias = messageStore.getPeerDisplayName(peerId)
+                if (peerId.equals(localNodeId, ignoreCase = true) ||
+                    peerId.removePrefix("NODE-").equals(localSuffix, ignoreCase = true) ||
+                    alias.equals(android.os.Build.MODEL, ignoreCase = true) ||
+                    alias.equals(_displayName.value, ignoreCase = true)
+                ) {
+                    messageStore.deleteConversation(peerId)
+                } else {
+                    loaded[peerId] = messageStore.getConversation(peerId)
+                }
             }
             _conversations.value = loaded
             Log.d(TAG, "Loaded ${loaded.size} conversations from MessageStore")
@@ -123,6 +135,13 @@ class MeshEngine private constructor(private val context: Context) {
 
             scope.launch {
                 transport.peerDiscoveryFlow.collect { peer ->
+                    val localSuffix = localNodeId.removePrefix("NODE-")
+                    if (peer.nodeId.equals(localNodeId, ignoreCase = true) ||
+                        peer.nodeId.removePrefix("NODE-").equals(localSuffix, ignoreCase = true) ||
+                        peer.alias.equals(android.os.Build.MODEL, ignoreCase = true) ||
+                        peer.alias.equals(_displayName.value, ignoreCase = true)) {
+                        return@collect // Filter out own device
+                    }
                     peerTable.updateOrAddPeer(peer)
                     _connectedPeers.value = peerTable.getAllPeers()
                 }
@@ -132,6 +151,20 @@ class MeshEngine private constructor(private val context: Context) {
         scope.launch {
             routingEngine.incomingPackets.collect { packet ->
                 handleIncomingPacket(packet)
+            }
+        }
+
+        // Periodic 10-second peer announcement broadcast across active mesh transports
+        scope.launch {
+            while (true) {
+                delay(10_000L)
+                try {
+                    if (_isMeshActive.value) {
+                        broadcastPeerAnnounce()
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Exception in 10s peer announce loop", e)
+                }
             }
         }
 
@@ -153,8 +186,31 @@ class MeshEngine private constructor(private val context: Context) {
         return _conversations.value[peerId] ?: emptyList()
     }
 
-    /** All peer IDs that have at least one stored message, sorted by most recent. */
-    fun getConversationPeerIds(): List<String> = messageStore.getAllConversationPeerIds()
+    /** All peer IDs that have at least one stored message, sorted by most recent, excluding own device. */
+    fun getConversationPeerIds(): List<String> {
+        val localSuffix = localNodeId.removePrefix("NODE-")
+        return messageStore.getAllConversationPeerIds().filter { peerId ->
+            val alias = messageStore.getPeerDisplayName(peerId)
+            !peerId.equals(localNodeId, ignoreCase = true) &&
+            !peerId.removePrefix("NODE-").equals(localSuffix, ignoreCase = true) &&
+            !alias.equals(android.os.Build.MODEL, ignoreCase = true) &&
+            !alias.equals(_displayName.value, ignoreCase = true)
+        }
+    }
+
+    /** Returns formatted or known custom display name for a given peer ID. */
+    fun getPeerDisplayName(peerId: String): String = messageStore.getPeerDisplayName(peerId)
+
+    /** Broadcasts our user-selected display name across all mesh transports. */
+    fun broadcastPeerAnnounce() {
+        val announcePacket = MeshPacket(
+            senderId = localNodeId,
+            recipientId = MeshPacket.BROADCAST_ADDRESS,
+            type = PacketType.PEER_DISCOVERY,
+            payload = _displayName.value
+        )
+        routingEngine.sendOutboundPacket(announcePacket)
+    }
 
     fun setDisplayName(name: String) {
         if (name.isNotBlank()) {
@@ -163,6 +219,8 @@ class MeshEngine private constructor(private val context: Context) {
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit().putString(KEY_DISPLAY_NAME, trimmed).apply()
             bleDriver.updateDisplayName(trimmed)
+            wifiDirectDriver.updateDisplayName(trimmed)
+            broadcastPeerAnnounce()
         }
     }
 
@@ -201,17 +259,19 @@ class MeshEngine private constructor(private val context: Context) {
     /** Checks if a peer is currently reachable or active on the mesh. */
     fun isPeerOnline(peerId: String): Boolean {
         val peer = peerTable.getPeer(peerId)
-        val isFreshInTable = peer != null && (System.currentTimeMillis() - peer.lastSeenTimestamp <= 35_000L)
-        return isFreshInTable || bleDriver.isPeerReachable(peerId)
+        val isFreshInTable = peer != null && (System.currentTimeMillis() - peer.lastSeenTimestamp <= 90_000L)
+        val hasActiveRoute = com.zerogrid.mesh.app.service.MeshPeerResolver.getInstance().getBestRouteForDevice(peerId) != null
+        val isBleReachable = bleDriver.isPeerReachable(peerId)
+        val isWifiReachable = wifiDirectDriver.isPeerReachable(peerId)
+        return isFreshInTable || hasActiveRoute || isBleReachable || isWifiReachable
     }
 
     /**
      * Send a direct message to a peer.
-     * If the recipient is offline/unreachable, the message is placed in the pipeline with PAUSED status.
-     * The background retry loop and tap-to-retry mechanism will deliver it when reachability is restored.
+     * Always attempts immediate delivery over the optimal active interface (BLE or Wi-Fi).
+     * If sending succeeds or the peer is reachable, marks as SENT; only if unreachable is it paused in pipeline.
      */
     fun sendDirectMessage(recipientId: String, text: String): MeshPacket {
-        val isOnline = isPeerOnline(recipientId)
         val packet = MeshPacket(
             senderId = localNodeId,
             recipientId = recipientId,
@@ -219,13 +279,10 @@ class MeshEngine private constructor(private val context: Context) {
             payload = text,
         )
 
-        val status: MessageStatus
-        if (isOnline) {
-            val sent = routingEngine.sendOutboundPacket(packet)
-            status = if (sent) MessageStatus.SENT else MessageStatus.PAUSED
-        } else {
-            status = MessageStatus.PAUSED
-        }
+        // Attempt transmission over active interfaces
+        val sent = routingEngine.sendOutboundPacket(packet)
+        val isOnline = sent || isPeerOnline(recipientId)
+        val status = if (sent) MessageStatus.SENT else (if (isOnline) MessageStatus.SENT else MessageStatus.PAUSED)
 
         // Persist the sent message to local store immediately
         val stored = StoredMessage(
@@ -282,7 +339,7 @@ class MeshEngine private constructor(private val context: Context) {
 
     /** Prunes stale peers and retries delivery for all paused messages destined for online peers. */
     fun retryPausedMessages() {
-        peerTable.pruneStalePeers(35_000L)
+        peerTable.pruneStalePeers(90_000L)
         _connectedPeers.value = peerTable.getAllPeers()
 
         val allConvs = _conversations.value
@@ -342,20 +399,34 @@ class MeshEngine private constructor(private val context: Context) {
     }
 
     private fun handleIncomingPacket(packet: MeshPacket) {
+        val localSuffix = localNodeId.removePrefix("NODE-")
+        if (packet.senderId.equals(localNodeId, ignoreCase = true) ||
+            packet.senderId.removePrefix("NODE-").equals(localSuffix, ignoreCase = true)
+        ) {
+            return // Never process self packet
+        }
+
         when (packet.type) {
             PacketType.PEER_DISCOVERY -> {
-                val peerAlias = if (packet.payload.isNotBlank()) packet.payload else "Peer ${packet.senderId.takeLast(4)}"
-                val peerNode = MeshNode(
-                    nodeId = packet.senderId,
-                    alias = peerAlias,
-                    rssi = -30,
-                    transportType = MeshNode.TRANSPORT_BLE,
-                    lastSeenTimestamp = System.currentTimeMillis(),
-                    hopDistance = packet.hopCount.coerceAtLeast(1),
-                    isDirectNeighbor = packet.hopCount <= 1
-                )
-                peerTable.updateOrAddPeer(peerNode)
-                _connectedPeers.value = peerTable.getAllPeers()
+                if (packet.senderId != localNodeId) {
+                    val peerAlias = if (packet.payload.isNotBlank()) packet.payload.trim() else "Peer ${packet.senderId.takeLast(4)}"
+                    if (packet.payload.isNotBlank()) {
+                        messageStore.savePeerAlias(packet.senderId, packet.payload.trim())
+                    }
+                    val peerNode = MeshNode(
+                        nodeId = packet.senderId,
+                        alias = peerAlias,
+                        rssi = -35,
+                        transportType = MeshNode.TRANSPORT_BLE,
+                        bleRssi = -35,
+                        lastSeenTimestamp = System.currentTimeMillis(),
+                        hopDistance = packet.hopCount.coerceAtLeast(1),
+                        isDirectNeighbor = packet.hopCount <= 1,
+                        availableTransports = mutableSetOf(MeshNode.TRANSPORT_BLE)
+                    )
+                    peerTable.updateOrAddPeer(peerNode)
+                    _connectedPeers.value = peerTable.getAllPeers()
+                }
             }
             PacketType.SOS_BEACON -> {
                 // Only process alerts from OTHER nodes — we already stored our own in triggerSosBeacon
@@ -379,7 +450,14 @@ class MeshEngine private constructor(private val context: Context) {
                     current.add(packet)
                     _receivedMessages.value = current
                 }
-                // Persist to MessageStore keyed by sender
+
+                // If sender has an alias in peerTable, ensure it is persisted in messageStore
+                val knownPeer = peerTable.getPeer(packet.senderId)
+                if (knownPeer != null && !knownPeer.alias.startsWith("Peer ") && knownPeer.alias.isNotBlank()) {
+                    messageStore.savePeerAlias(packet.senderId, knownPeer.alias)
+                }
+
+                // Persist to MessageStore keyed by sender (single chat thread)
                 val stored = StoredMessage(
                     id = packet.packetId,
                     senderId = packet.senderId,

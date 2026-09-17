@@ -7,19 +7,16 @@ import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.zerogrid.ui.theme.BottomNavBg
-import com.example.zerogrid.ui.theme.StatusActive
-import com.example.zerogrid.ui.theme.TextSecondary
 
 enum class NavTab(val label: String, val icon: ImageVector, val screen: Screen) {
     HOME("Home", Icons.Outlined.Home, Screen.HOME),
@@ -35,14 +32,14 @@ fun ZeroGridBottomBar(
     onNavigate: (Screen) -> Unit
 ) {
     NavigationBar(
-        containerColor = BottomNavBg,
-        contentColor = TextSecondary,
-        tonalElevation = 0.dp
+        containerColor = MaterialTheme.colorScheme.surface,
+        contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        tonalElevation = 4.dp
     ) {
         NavTab.entries.forEach { tab ->
             val selected = when (tab) {
                 NavTab.HOME -> currentScreen == Screen.HOME
-                NavTab.MESSAGES -> (currentScreen == Screen.MESSAGES || currentScreen == Screen.CHANNELS || currentScreen == Screen.CHAT_DETAIL)
+                NavTab.MESSAGES -> (currentScreen == Screen.MESSAGES || currentScreen == Screen.CHANNELS || currentScreen == Screen.CHAT_DETAIL || currentScreen == Screen.PEER_DIRECT_CHAT)
                 NavTab.MESH -> (currentScreen == Screen.MESH || currentScreen == Screen.PEER_DETAILS || currentScreen == Screen.NETWORK_STATUS)
                 NavTab.FILES -> (currentScreen == Screen.FILES || currentScreen == Screen.SEND_FILE || currentScreen == Screen.FILE_TRANSFER)
                 NavTab.SETTINGS -> (currentScreen == Screen.SETTINGS || currentScreen == Screen.SECURITY_PRIVACY)
@@ -51,13 +48,13 @@ fun ZeroGridBottomBar(
                 selected = selected,
                 onClick = { onNavigate(tab.screen) },
                 icon = { Icon(imageVector = tab.icon, contentDescription = tab.label) },
-                label = { Text(text = tab.label, fontFamily = FontFamily.Monospace, fontSize = 10.sp) },
+                label = { Text(text = tab.label, fontSize = 11.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal) },
                 colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color.Black,
-                    unselectedIconColor = TextSecondary,
-                    selectedTextColor = TextSecondary,
-                    unselectedTextColor = TextSecondary,
-                    indicatorColor = StatusActive
+                    selectedIconColor = MaterialTheme.colorScheme.onPrimary,
+                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    indicatorColor = MaterialTheme.colorScheme.primary
                 )
             )
         }

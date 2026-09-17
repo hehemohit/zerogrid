@@ -2,46 +2,59 @@ package com.example.zerogrid.onboarding
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import com.example.zerogrid.navigation.*
-import com.example.zerogrid.ui.theme.*
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.SettingsBluetooth // Use a different Bluetooth icon for variety
+import androidx.compose.material.icons.filled.SettingsBluetooth
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.zerogrid.ui.theme.*
+import com.example.zerogrid.navigation.Screen
+import com.example.zerogrid.ui.components.ZeroGridButton
+import com.example.zerogrid.ui.theme.GreenGranted
+import com.example.zerogrid.ui.theme.RedNotGranted
 
 @Composable
 fun PermissionsScreen(onNavigate: (Screen) -> Unit = {}) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DarkBackground)
-            .padding(horizontal = 24.dp)
+            .background(MaterialTheme.colorScheme.background)
+            .padding(horizontal = 20.dp)
             .verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         // Top Logo and Heading
         Row(
@@ -50,81 +63,81 @@ fun PermissionsScreen(onNavigate: (Screen) -> Unit = {}) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Filled.Share, // Placeholder for the mesh network logo
+                imageVector = Icons.Filled.Share,
                 contentDescription = "Logo",
-                tint = PrimaryCyan,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(24.dp)
             )
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "ZeroGrid",
-                color = PrimaryCyan,
+                color = MaterialTheme.colorScheme.primary,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         Text(
-            text = "Enable ZeroGrid Connectivity",
-            color = PrimaryCyan,
-            fontSize = 28.sp,
+            text = "Enable Hardware Connectivity",
+            color = MaterialTheme.colorScheme.primary,
+            fontSize = 26.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
-            lineHeight = 34.sp
+            lineHeight = 32.sp
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            text = "To build a resilient local mesh network, ZeroGrid requires access to your device's connectivity hardware.",
-            color = TextSecondary,
-            fontSize = 16.sp,
+            text = "To send messages without cell service, ZeroGrid requires permission to use your phone's local Bluetooth and Wi-Fi antennas.",
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 15.sp,
             textAlign = TextAlign.Center,
-            lineHeight = 24.sp
+            lineHeight = 22.sp
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Custom Stepper Component
         ZeroGridStepper(currentStep = 2, totalSteps = 3)
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp))
 
         // Permissions List
         PermissionItemCard(
             icon = Icons.Filled.SettingsBluetooth,
-            title = "Nearby Devices",
+            title = "Nearby Devices (Bluetooth)",
             status = "Not granted",
             isGranted = false,
-            description = "Core requirement for detecting and connecting to other mesh nodes via Bluetooth and local protocols.",
+            description = "Discovers nearby mesh phones up to 100 meters away.",
             label = "REQUIRED",
-            onAllowClick = { /* Handle Nearby Devices allow */ }
+            onAllowClick = { /* Handle Bluetooth permission */ }
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
         PermissionItemCard(
             icon = Icons.Filled.Wifi,
-            title = "Wi-Fi & Local Network",
+            title = "Wi-Fi Direct & LAN",
             status = "Not granted",
             isGranted = false,
-            description = "Enables high-bandwidth peer-to-peer data transfer independent of external internet access.",
+            description = "High-speed multi-hop file transfers without internet.",
             label = "REQUIRED",
-            onAllowClick = { /* Handle Wi-Fi allow */ }
+            onAllowClick = { /* Handle Wi-Fi permission */ }
         )
 
         Spacer(modifier = Modifier.height(12.dp))
 
         PermissionItemCard(
             icon = Icons.Filled.LocationOn,
-            title = "Location",
+            title = "Location Access",
             status = "Not granted",
             isGranted = false,
-            description = "Android requires location access to scan for nearby Bluetooth and Wi-Fi networks.",
+            description = "Android requires location permission to perform Bluetooth LE & Wi-Fi scanning.",
             label = "REQUIRED",
-            onAllowClick = { /* Handle Location allow */ }
+            onAllowClick = { /* Handle Location permission */ }
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -134,77 +147,63 @@ fun PermissionsScreen(onNavigate: (Screen) -> Unit = {}) {
             title = "Notifications",
             status = "Not granted",
             isGranted = false,
-            description = "Receive alerts for critical mesh updates, SOS signals, and network status changes.",
+            description = "Receive emergency SOS alerts and mesh status updates in real-time.",
             label = "RECOMMENDED",
-            onAllowClick = { /* Handle Notifications allow */ }
+            onAllowClick = { /* Handle Notifications permission */ }
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         // Info Box Card
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(12.dp)
         ) {
             Row(
-                modifier = Modifier.padding(20.dp),
+                modifier = Modifier.padding(16.dp),
                 verticalAlignment = Alignment.Top
             ) {
                 Icon(
                     imageVector = Icons.Filled.Info,
                     contentDescription = "Info",
-                    tint = TextPrimary,
+                    tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(20.dp)
                 )
-                Spacer(modifier = Modifier.width(16.dp))
+                Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = "Why does ZeroGrid need these?",
-                        color = TextPrimary,
-                        fontSize = 18.sp,
+                        text = "Why zero internet is safe & private",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.SemiBold
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "ZeroGrid operates completely offline. These hardware permissions are necessary to form the encrypted, decentralized local mesh network. Your data never leaves the local grid.",
-                        color = TextSecondary,
-                        fontSize = 14.sp,
-                        lineHeight = 20.sp
+                        text = "ZeroGrid uses local hardware only. Your phone will never upload location or personal data to remote servers.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
-        // Bottom Actions - Continue Button (Disabled look in screenshot)
-        Button(
-            onClick = { onNavigate(Screen.CREATE_IDENTITY) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(56.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = PrimaryCyan,
-                contentColor = Color.Black
-            ),
-            shape = RoundedCornerShape(12.dp),
-            enabled = true
-        ) {
+        // Bottom Actions
+        ZeroGridButton(
+            text = "Continue to Create Identity",
+            onClick = { onNavigate(Screen.CREATE_IDENTITY) }
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        TextButton(onClick = { onNavigate(Screen.CREATE_IDENTITY) }) {
             Text(
-                text = "Continue",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        TextButton(onClick = { /* Handle Review permissions later */ }) {
-            Text(
-                text = "Review permissions later",
-                color = PrimaryCyan,
-                fontSize = 16.sp
+                text = "Review permissions later in Settings",
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 15.sp
             )
         }
 
@@ -212,9 +211,6 @@ fun PermissionsScreen(onNavigate: (Screen) -> Unit = {}) {
     }
 }
 
-/**
- * Reusable component for each permission item.
- */
 @Composable
 fun PermissionItemCard(
     icon: ImageVector,
@@ -227,70 +223,74 @@ fun PermissionItemCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp)
+            modifier = Modifier.padding(16.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Icon(
                         imageVector = icon,
                         contentDescription = title,
-                        tint = PrimaryCyan,
-                        modifier = Modifier.size(28.dp)
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
                     )
-                    Spacer(modifier = Modifier.width(20.dp))
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         Text(
                             text = title,
-                            color = TextPrimary,
-                            fontSize = 18.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = status,
                             color = if (isGranted) GreenGranted else RedNotGranted,
-                            fontSize = 14.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold
                         )
                     }
                 }
                 Text(
                     text = label,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
-                        .background(GreyLabel, RoundedCornerShape(4.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp),
-                    fontSize = 12.sp,
+                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
                 text = description,
-                color = TextSecondary,
-                fontSize = 14.sp,
-                lineHeight = 20.sp
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 13.sp,
+                lineHeight = 18.sp
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.End
             ) {
                 FilledTonalButton(
                     onClick = onAllowClick,
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
                 ) {
                     Text(
-                        text = "Allow",
-                        fontWeight = FontWeight.SemiBold
+                        text = "Allow Access",
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
@@ -298,46 +298,35 @@ fun PermissionItemCard(
     }
 }
 
-/**
- * Custom line-based stepper component.
- */
 @Composable
 fun ZeroGridStepper(currentStep: Int, totalSteps: Int) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val trackColor = MaterialTheme.colorScheme.surfaceVariant
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Canvas(modifier = Modifier.width(180.dp).height(10.dp)) {
             val totalLineWidth = size.width
             val totalLineHeight = size.height
             val segmentWidth = totalLineWidth / totalSteps
-            val lineThickness = 3.dp.toPx()
+            val lineThickness = 4.dp.toPx()
 
             for (i in 0 until totalSteps) {
                 val startX = segmentWidth * i
                 val isActive = i < currentStep
                 drawLine(
-                    color = if (isActive) PrimaryCyan else LineColor,
+                    color = if (isActive) primaryColor else trackColor,
                     start = Offset(startX, totalLineHeight / 2),
-                    end = Offset(startX + segmentWidth, totalLineHeight / 2),
+                    end = Offset(startX + segmentWidth - 8f, totalLineHeight / 2),
                     strokeWidth = lineThickness
                 )
             }
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = "STEP $currentStep OF $totalSteps",
-            color = TextSecondary,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Medium
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
         )
-    }
-}
-
-@Composable
-fun ZeroGridPermissionsScreen() = PermissionsScreen()
-
-@Preview(showBackground = true, device = "spec:width=411dp,height=891dp")
-@Composable
-fun ZeroGridPermissionsScreenPreview() {
-    ZeroGridTheme {
-        ZeroGridPermissionsScreen()
     }
 }

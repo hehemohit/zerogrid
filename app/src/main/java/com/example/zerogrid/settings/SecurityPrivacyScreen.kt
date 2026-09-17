@@ -1,24 +1,50 @@
 package com.example.zerogrid.settings
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.QrCode
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.navigation.ZeroGridBottomBar
-import com.example.zerogrid.ui.theme.*
+import com.example.zerogrid.ui.components.PanicWipeControl
+import com.example.zerogrid.ui.components.PlainLanguageInfoCard
+import com.example.zerogrid.ui.components.ZeroGridButton
+import com.example.zerogrid.ui.components.ZeroGridButtonStyle
 
 @Composable
 fun SecurityPrivacyScreen(onNavigate: (Screen) -> Unit = {}) {
@@ -27,7 +53,7 @@ fun SecurityPrivacyScreen(onNavigate: (Screen) -> Unit = {}) {
     var metadataObfuscation by remember { mutableStateOf(false) }
 
     Scaffold(
-        containerColor = DarkBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = { SecurityPrivacyTopBar(onBackClick = { onNavigate(Screen.SETTINGS) }) },
         bottomBar = { ZeroGridBottomBar(currentScreen = Screen.SETTINGS, onNavigate = onNavigate) }
     ) { paddingValues ->
@@ -40,9 +66,16 @@ fun SecurityPrivacyScreen(onNavigate: (Screen) -> Unit = {}) {
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
+            PlainLanguageInfoCard(
+                title = "Understanding ZeroGrid Security",
+                explanation = "Your key pair is generated on this phone. Messages are encrypted end-to-end so intermediate relay nodes can never inspect your content."
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             Text(
-                text = "ENCRYPTION & KEYS",
-                color = TextSecondary,
+                text = "ENCRYPTION & FINGERPRINT",
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold
@@ -51,7 +84,7 @@ fun SecurityPrivacyScreen(onNavigate: (Screen) -> Unit = {}) {
 
             SecurityToggleCard(
                 title = "End-to-End Encryption",
-                subtitle = "Encrypt all 1-to-1 payload messages using Ed25519/X25519 keys",
+                subtitle = "Encrypt all direct message payloads",
                 checked = e2eEncryptionEnabled,
                 onCheckedChange = { e2eEncryptionEnabled = it }
             )
@@ -60,32 +93,31 @@ fun SecurityPrivacyScreen(onNavigate: (Screen) -> Unit = {}) {
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = CardBackground),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "Public Key Fingerprint",
-                        color = TextPrimary,
-                        fontSize = 14.sp,
+                        text = "Your Public Key Fingerprint",
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "8F3A - 9C12 - B4E5 - 77D1 - 09AA - 33FE",
-                        color = StatusActive,
+                        color = MaterialTheme.colorScheme.primary,
                         fontSize = 13.sp,
                         fontFamily = FontFamily.Monospace
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedButton(
-                        onClick = { /* Export Key / QR */ },
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = StatusActive)
-                    ) {
-                        Icon(imageVector = Icons.Outlined.QrCode, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(text = "Export Key / Show QR", fontSize = 12.sp)
-                    }
+                    ZeroGridButton(
+                        text = "Show QR Code",
+                        onClick = { },
+                        style = ZeroGridButtonStyle.OUTLINE,
+                        icon = Icons.Outlined.QrCode,
+                        minHeight = 40.dp
+                    )
                 }
             }
 
@@ -93,7 +125,7 @@ fun SecurityPrivacyScreen(onNavigate: (Screen) -> Unit = {}) {
 
             Text(
                 text = "ANONYMITY & ROUTING",
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold
@@ -111,23 +143,28 @@ fun SecurityPrivacyScreen(onNavigate: (Screen) -> Unit = {}) {
 
             SecurityToggleCard(
                 title = "Metadata Obfuscation",
-                subtitle = "Pad packet length to mask payload signatures",
+                subtitle = "Pad packet sizes to obscure packet signatures",
                 checked = metadataObfuscation,
                 onCheckedChange = { metadataObfuscation = it }
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
-            Button(
-                onClick = { /* Reset Identity */ },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF3B1A1E), contentColor = AlertPink),
-                shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(imageVector = Icons.Outlined.DeleteForever, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "Reset Identity & Re-generate Keys", fontWeight = FontWeight.Bold)
-            }
+            Text(
+                text = "EMERGENCY PANIC-WIPE",
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Hold 3 seconds + confirmation dialog control
+            PanicWipeControl(
+                onConfirmWipe = {
+                    onNavigate(Screen.ONBOARDING)
+                }
+            )
 
             Spacer(modifier = Modifier.height(32.dp))
         }
@@ -140,21 +177,21 @@ private fun SecurityPrivacyTopBar(onBackClick: () -> Unit) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBackClick) {
-                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onBackground)
             }
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Security & Privacy",
-                color = TextPrimary,
-                fontSize = 18.sp,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.Bold
             )
         }
-        HorizontalDivider(color = DividerColor, thickness = 1.dp)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
     }
 }
 
@@ -167,7 +204,7 @@ private fun SecurityToggleCard(
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
@@ -178,19 +215,17 @@ private fun SecurityToggleCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(text = subtitle, color = TextSecondary, fontSize = 12.sp)
+                Text(text = title, color = MaterialTheme.colorScheme.onSurface, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(text = subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             }
             Spacer(modifier = Modifier.width(12.dp))
             Switch(
                 checked = checked,
                 onCheckedChange = onCheckedChange,
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.Black,
-                    checkedTrackColor = StatusActive,
-                    uncheckedThumbColor = TextSecondary,
-                    uncheckedTrackColor = SurfaceDarker
+                    checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                    checkedTrackColor = MaterialTheme.colorScheme.primary
                 )
             )
         }

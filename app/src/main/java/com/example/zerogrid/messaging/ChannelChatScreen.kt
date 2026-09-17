@@ -1,7 +1,18 @@
 package com.example.zerogrid.messaging
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -9,28 +20,45 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.outlined.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Hub
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Shield
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.zerogrid.navigation.Screen
-import com.example.zerogrid.ui.theme.*
 
 @Composable
 fun ChatDetailScreen(onNavigate: (Screen) -> Unit = {}) {
     var messageText by remember { mutableStateOf("") }
 
     Scaffold(
-        containerColor = DarkBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = { ChatDetailTopBar(onBackClick = { onNavigate(Screen.MESSAGES) }) },
         bottomBar = { ChatBottomBar(messageText = messageText, onValueChange = { messageText = it }) }
     ) { paddingValues ->
@@ -50,48 +78,32 @@ fun ChatDetailScreen(onNavigate: (Screen) -> Unit = {}) {
                 name = "Alex",
                 time = "10:42 AM",
                 message = "Coordinates confirmed for Sector 4. Proceeding with caution.",
-                badgeText = "Direct",
-                badgeIcon = Icons.Outlined.Check,
-                badgeColor = StatusActive
+                badgeText = "Direct Hop"
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // Message 2: Rescue Team
             OtherMessageItem(
                 initial = "RT",
                 name = "Rescue Team",
                 time = "10:45 AM",
-                message = "Copy that. ETA 15 mikes. Ensure LZ is clear.",
-                badgeText = "2 hops   ↗ Routed through 2 peers",
-                badgeColor = StatusActive,
-                isCustomBadge = true
+                message = "Copy that. ETA 15 minutes. Ensure landing area is clear.",
+                badgeText = "Relayed via 2 Hops"
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
             // System Notification Chip
-            SystemNotificationBadge(text = "Device-7A42 joined #mesh")
+            SystemNotificationBadge(text = "Device-7A42 joined #mesh channel")
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            // Message 3: Device-7A42
-            OtherMessageItem(
-                icon = Icons.Outlined.Router,
-                name = "Device-7A42",
-                time = "10:47 AM",
-                message = "[AUTOMATED] Signal strength optimal. Establishing relay link.",
-                badgeText = "Relay  •  1 hop",
-                badgeColor = StatusActive
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Message 4: You (CurrentUser)
+            // Message 3: You
             MyMessageItem(
                 time = "10:50 AM",
-                message = "LZ is secure. Standing by for visual.",
-                statusText = "Delivered ✓"
+                message = "Landing zone is secure. Standing by for visual confirmation.",
+                statusText = "Relayed to Mesh ✓"
             )
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -105,7 +117,7 @@ private fun ChatDetailTopBar(onBackClick: () -> Unit = {}) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 14.dp),
+                .padding(horizontal = 12.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -114,82 +126,61 @@ private fun ChatDetailTopBar(onBackClick: () -> Unit = {}) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
-                        tint = StatusActive,
+                        tint = MaterialTheme.colorScheme.onBackground,
                         modifier = Modifier.size(24.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp))
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .background(SurfaceDarker, RoundedCornerShape(8.dp)),
+                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Hub,
                         contentDescription = null,
-                        tint = StatusActive,
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "#mesh",
-                            color = TextPrimary,
+                            color = MaterialTheme.colorScheme.onBackground,
                             fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            fontFamily = FontFamily.Monospace
+                            fontWeight = FontWeight.Bold
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Icon(
                             imageVector = Icons.Outlined.Shield,
                             contentDescription = null,
-                            tint = StatusActive,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(14.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = "18 participants • Mesh Active",
-                        color = TextSecondary,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace
+                        text = "Public Mesh Broadcast Channel",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 11.sp
                     )
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Outlined.Search,
-                    contentDescription = "Search",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(20.dp))
-                Icon(
-                    imageVector = Icons.Outlined.Info,
-                    contentDescription = "Info",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
         }
-        HorizontalDivider(color = DividerColor, thickness = 1.dp)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
     }
 }
 
 @Composable
 private fun OtherMessageItem(
-    initial: String? = null,
-    icon: ImageVector? = null,
+    initial: String,
     name: String,
     time: String,
     message: String,
-    badgeText: String,
-    badgeColor: Color,
-    badgeIcon: ImageVector? = null,
-    isCustomBadge: Boolean = false
+    badgeText: String
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -201,72 +192,46 @@ private fun OtherMessageItem(
                 Box(
                     modifier = Modifier
                         .size(32.dp)
-                        .background(SurfaceDarker, CircleShape),
+                        .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (icon != null) {
-                        Icon(imageVector = icon, contentDescription = null, tint = StatusActive, modifier = Modifier.size(16.dp))
-                    } else if (initial != null) {
-                        Text(text = initial, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                    }
+                    Text(text = initial, color = MaterialTheme.colorScheme.onSurface, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = name,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
+                    fontWeight = FontWeight.Bold
                 )
             }
             Text(
                 text = time,
-                color = TextSecondary,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp
             )
         }
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 42.dp),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
+                .padding(start = 40.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Column(modifier = Modifier.padding(14.dp)) {
+            Column(modifier = Modifier.padding(12.dp)) {
                 Text(
                     text = message,
-                    color = TextPrimary,
+                    color = MaterialTheme.colorScheme.onSurface,
                     fontSize = 14.sp
                 )
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier
-                        .background(SurfaceDarker, RoundedCornerShape(6.dp))
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (badgeIcon != null) {
-                        Icon(imageVector = badgeIcon, contentDescription = null, tint = badgeColor, modifier = Modifier.size(12.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                    }
-                    if (isCustomBadge) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .background(StatusActive, RoundedCornerShape(2.dp))
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                    }
-                    Text(
-                        text = badgeText,
-                        color = badgeColor,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace,
-                        fontWeight = FontWeight.Medium
-                    )
-                }
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = badgeText,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium
+                )
             }
         }
     }
@@ -280,17 +245,15 @@ private fun SystemNotificationBadge(text: String) {
             .padding(vertical = 4.dp),
         contentAlignment = Alignment.Center
     ) {
-        Surface(
-            color = SurfaceDarker,
-            shape = RoundedCornerShape(12.dp),
-            modifier = Modifier.wrapContentWidth()
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            shape = RoundedCornerShape(12.dp)
         ) {
             Text(
                 text = text,
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                 textAlign = TextAlign.Center
             )
         }
@@ -313,50 +276,40 @@ private fun MyMessageItem(
         ) {
             Text(
                 text = time,
-                color = TextSecondary,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 11.sp
             )
             Text(
                 text = "You",
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onSurface,
                 fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace
+                fontWeight = FontWeight.Bold
             )
         }
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(4.dp))
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 42.dp),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
+                .padding(start = 40.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
             shape = RoundedCornerShape(12.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(14.dp),
+                    .padding(12.dp),
                 horizontalAlignment = Alignment.End
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFF0F2C2A), RoundedCornerShape(8.dp))
-                        .padding(12.dp)
-                ) {
-                    Text(
-                        text = message,
-                        color = StatusActive,
-                        fontSize = 14.sp
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = message,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = statusText,
-                    color = StatusActive,
+                    color = MaterialTheme.colorScheme.primary,
                     fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Medium
                 )
             }
@@ -367,116 +320,42 @@ private fun MyMessageItem(
 @Composable
 private fun ChatBottomBar(messageText: String, onValueChange: (String) -> Unit) {
     Column {
-        HorizontalDivider(color = DividerColor, thickness = 1.dp)
-        Column(
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(DarkBackground)
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .background(MaterialTheme.colorScheme.surface)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                IconButton(
-                    onClick = { },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(SurfaceDarker, CircleShape)
-                ) {
-                    Icon(imageVector = Icons.Outlined.Add, contentDescription = "Add Attachment", tint = StatusActive)
-                }
-                OutlinedTextField(
-                    value = messageText,
-                    onValueChange = onValueChange,
-                    placeholder = { Text("Message #mesh...", color = TextSecondary, fontSize = 14.sp) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(50.dp),
-                    shape = RoundedCornerShape(24.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = CardBackground,
-                        unfocusedContainerColor = CardBackground,
-                        disabledContainerColor = CardBackground,
-                        focusedBorderColor = Color.Transparent,
-                        unfocusedBorderColor = Color.Transparent,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
-                    ),
-                    singleLine = true
-                )
-                Button(
-                    onClick = { },
-                    modifier = Modifier.size(48.dp),
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = StatusActive),
-                    contentPadding = PaddingValues(0.dp)
-                ) {
-                    Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.Black, modifier = Modifier.size(20.dp))
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Icon(imageVector = Icons.Outlined.Lock, contentDescription = null, tint = StatusActive, modifier = Modifier.size(12.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Icon(imageVector = Icons.Outlined.Lock, contentDescription = null, tint = StatusActive, modifier = Modifier.size(12.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "End-to-end encrypted",
-                    color = TextSecondary,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace
-                )
-            }
-        }
-        DashboardBottomNavChatActive()
-    }
-}
-
-@Composable
-private fun DashboardBottomNavChatActive() {
-    NavigationBar(
-        containerColor = BottomNavBg,
-        contentColor = TextSecondary,
-        tonalElevation = 0.dp
-    ) {
-        val items = listOf(
-            Triple("Home", Icons.Outlined.Home, false),
-            Triple("Messages", Icons.Outlined.ChatBubbleOutline, true),
-            Triple("Mesh", Icons.Outlined.Share, false),
-            Triple("Files", Icons.Outlined.Folder, false),
-            Triple("Settings", Icons.Outlined.Settings, false)
-        )
-        items.forEach { (label, icon, selected) ->
-            NavigationBarItem(
-                selected = selected,
-                onClick = { },
-                icon = { Icon(imageVector = icon, contentDescription = label) },
-                label = { Text(text = label, fontFamily = FontFamily.Monospace, fontSize = 10.sp) },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = Color.Black,
-                    unselectedIconColor = TextSecondary,
-                    selectedTextColor = TextSecondary,
-                    unselectedTextColor = TextSecondary,
-                    indicatorColor = StatusActive
-                )
+            OutlinedTextField(
+                value = messageText,
+                onValueChange = onValueChange,
+                placeholder = { Text("Message #mesh channel...", color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 14.sp) },
+                modifier = Modifier
+                    .weight(1f)
+                    .height(48.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.background,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.background,
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                ),
+                singleLine = true
             )
+            Button(
+                onClick = { },
+                modifier = Modifier.size(44.dp),
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary),
+                contentPadding = PaddingValues(0.dp)
+            ) {
+                Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "Send", modifier = Modifier.size(18.dp))
+            }
         }
-    }
-}
-
-@Composable
-fun ZeroGridChatDetailScreen() = ChatDetailScreen()
-
-@Preview(showBackground = true)
-@Composable
-fun ZeroGridChatDetailPreview() {
-    ZeroGridTheme {
-        ZeroGridChatDetailScreen()
     }
 }

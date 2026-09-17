@@ -1,27 +1,45 @@
 package com.example.zerogrid.mesh
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
 import com.example.zerogrid.mesh.engine.MeshEngine
-import com.example.zerogrid.mesh.engine.MeshNode
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.navigation.ZeroGridBottomBar
-import com.example.zerogrid.ui.theme.*
+import com.example.zerogrid.ui.components.PlainLanguageInfoCard
 
 @Composable
 fun NetworkStatusScreen(onNavigate: (Screen) -> Unit = {}) {
@@ -33,7 +51,7 @@ fun NetworkStatusScreen(onNavigate: (Screen) -> Unit = {}) {
     val relayedPeers = peers.count { it.hopDistance > 1 }
 
     Scaffold(
-        containerColor = DarkBackground,
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = { NetworkStatusTopBar(onBackClick = { onNavigate(Screen.MESH) }) },
         bottomBar = { ZeroGridBottomBar(currentScreen = Screen.MESH, onNavigate = onNavigate) }
     ) { paddingValues ->
@@ -46,9 +64,16 @@ fun NetworkStatusScreen(onNavigate: (Screen) -> Unit = {}) {
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
+            PlainLanguageInfoCard(
+                title = "What is Network Topology?",
+                explanation = "Network Topology shows how your phone connects to surrounding devices via Bluetooth and Wi-Fi Direct. Packets hop automatically across nodes to form a resilient web."
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             Text(
                 text = "TOPOLOGY METRICS",
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold
@@ -66,13 +91,12 @@ fun NetworkStatusScreen(onNavigate: (Screen) -> Unit = {}) {
                     modifier = Modifier.weight(1f)
                 )
                 MetricCard(
-                    title = "Max Hop Count",
+                    title = "Max Hop Reach",
                     value = if (peers.isEmpty()) "0" else peers.maxOf { it.hopDistance }.toString(),
-                    subtext = "Protocol limit: 5",
+                    subtext = "Protocol limit: 5 hops",
                     modifier = Modifier.weight(1f)
                 )
             }
-            // ... (rest of the metric cards)
 
             Spacer(modifier = Modifier.height(10.dp))
 
@@ -83,22 +107,22 @@ fun NetworkStatusScreen(onNavigate: (Screen) -> Unit = {}) {
                 MetricCard(
                     title = "Packets Relayed",
                     value = "1,428",
-                    subtext = "0.02% Drop Rate",
+                    subtext = "0.02% Loop Filtered",
                     modifier = Modifier.weight(1f)
                 )
                 MetricCard(
-                    title = "Throughput",
+                    title = "Mesh Throughput",
                     value = "184 KB/s",
                     subtext = "BLE + Wi-Fi Direct",
                     modifier = Modifier.weight(1f)
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             Text(
                 text = "ACTIVE TRANSPORTS",
-                color = TextSecondary,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold
@@ -107,8 +131,8 @@ fun NetworkStatusScreen(onNavigate: (Screen) -> Unit = {}) {
 
             TransportStatusCard(
                 name = "Bluetooth Low Energy (BLE)",
-                status = if (isMeshActive) "Advertising & Scanning" else "Offline",
-                details = "Frequency: 2.4 GHz  •  Status: OK",
+                status = if (isMeshActive) "Advertising & Scanning Active" else "Offline",
+                details = "Frequency: 2.4 GHz  •  GATT Server Active",
                 isActive = isMeshActive
             )
 
@@ -116,8 +140,8 @@ fun NetworkStatusScreen(onNavigate: (Screen) -> Unit = {}) {
 
             TransportStatusCard(
                 name = "Wi-Fi Direct (P2P)",
-                status = if (isMeshActive) "Discovery Protocol Active" else "Offline",
-                details = "Band: 2.4/5 GHz  •  TCP Server: port 8888",
+                status = if (isMeshActive) "P2P Discovery Active" else "Offline",
+                details = "Band: 2.4/5 GHz  •  TCP Listener Port 8888",
                 isActive = isMeshActive
             )
 
@@ -132,21 +156,21 @@ private fun NetworkStatusTopBar(onBackClick: () -> Unit) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 12.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBackClick) {
-                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = TextPrimary)
+                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = MaterialTheme.colorScheme.onBackground)
             }
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "Network Topology & Status",
-                color = TextPrimary,
+                color = MaterialTheme.colorScheme.onBackground,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
         }
-        HorizontalDivider(color = DividerColor, thickness = 1.dp)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline, thickness = 1.dp)
     }
 }
 
@@ -154,15 +178,15 @@ private fun NetworkStatusTopBar(onBackClick: () -> Unit) {
 private fun MetricCard(title: String, value: String, subtext: String, modifier: Modifier = Modifier) {
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = title, color = TextSecondary, fontSize = 12.sp)
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(text = value, color = StatusActive, fontSize = 22.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(text = title, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 12.sp)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(text = subtext, color = TextPrimary, fontSize = 11.sp)
+            Text(text = value, color = MaterialTheme.colorScheme.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(text = subtext, color = MaterialTheme.colorScheme.onSurface, fontSize = 11.sp)
         }
     }
 }
@@ -171,7 +195,7 @@ private fun MetricCard(title: String, value: String, subtext: String, modifier: 
 private fun TransportStatusCard(name: String, status: String, details: String, isActive: Boolean) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         shape = RoundedCornerShape(12.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -180,15 +204,15 @@ private fun TransportStatusCard(name: String, status: String, details: String, i
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = name, color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                Text(text = name, color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                 Box(
                     modifier = Modifier
-                        .background(if (isActive) StatusActive else TextSecondary, RoundedCornerShape(4.dp))
+                        .background(if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(4.dp))
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 ) {
                     Text(
                         text = if (isActive) "ACTIVE" else "INACTIVE",
-                        color = Color.Black,
+                        color = if (isActive) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace
@@ -196,9 +220,9 @@ private fun TransportStatusCard(name: String, status: String, details: String, i
                 }
             }
             Spacer(modifier = Modifier.height(6.dp))
-            Text(text = status, color = StatusActive, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+            Text(text = status, color = MaterialTheme.colorScheme.primary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
             Spacer(modifier = Modifier.height(4.dp))
-            Text(text = details, color = TextSecondary, fontSize = 11.sp)
+            Text(text = details, color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 11.sp)
         }
     }
 }

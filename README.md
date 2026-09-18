@@ -1,4 +1,4 @@
-# ZeroGrid 🌐
+# ZeroGrid 🌐 <-- push test
 
 > **Decentralized, Off-Grid Peer-to-Peer Mesh Communication & Emergency Network for Android**
 

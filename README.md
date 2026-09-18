@@ -1,4 +1,4 @@
-# ZeroGrid 🌐 <-- push test
+# ZeroGrid 🌐
 
 > **Decentralized, Off-Grid Peer-to-Peer Mesh Communication & Emergency Network for Android**
 
@@ -211,3 +211,4 @@ cd zerogrid
 ## 👥 Contributors & Maintainers
 
 - **ZeroGrid Core Team** — Mesh Networking & UI/UX Architecture
+  SHVET UI

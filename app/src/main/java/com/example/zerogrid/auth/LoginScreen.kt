@@ -38,7 +38,7 @@ import com.zerogrid.mesh.app.ui.UserSessionManager
 fun LoginScreen(
     sessionManager: UserSessionManager,
     onNavigateToRegister: () -> Unit,
-    onLoginSuccess: (role: UserRole) -> Unit
+    onLoginSuccess: (role: UserRole, profileComplete: Boolean) -> Unit
 ) {
     val context = LocalContext.current
     val viewModel = remember {
@@ -58,7 +58,7 @@ fun LoginScreen(
     LaunchedEffect(uiState) {
         when (val state = uiState) {
             is AuthUiState.Success -> {
-                onLoginSuccess(state.role)
+                onLoginSuccess(state.role, state.profileComplete)
                 viewModel.resetState()
             }
             is AuthUiState.Error -> {

@@ -39,7 +39,7 @@ private val AdminAmber = Color(0xFFFF9500)
 fun RegisterScreen(
     sessionManager: UserSessionManager,
     onNavigateToLogin: () -> Unit,
-    onRegisterSuccess: (role: UserRole) -> Unit
+    onRegisterSuccess: (role: UserRole, profileComplete: Boolean) -> Unit
 ) {
     val viewModel = remember { AuthViewModel(AuthRepository(sessionManager)) }
     val uiState by viewModel.uiState.collectAsState()
@@ -57,7 +57,7 @@ fun RegisterScreen(
     LaunchedEffect(uiState) {
         when (val state = uiState) {
             is AuthUiState.Success -> {
-                onRegisterSuccess(state.role)
+                onRegisterSuccess(state.role, state.profileComplete)
                 viewModel.resetState()
             }
             is AuthUiState.Error -> {

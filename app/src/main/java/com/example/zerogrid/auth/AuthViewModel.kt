@@ -4,20 +4,29 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zerogrid.network.AuthRepository
 import com.example.zerogrid.network.AuthResult
+import com.example.zerogrid.network.ProfileResult
+import com.example.zerogrid.network.UserDto
 import com.zerogrid.mesh.app.ui.UserRole
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-// ── UI State ───────────────────────────────────────────────────────────────
+// ── UI States ──────────────────────────────────────────────────────────────
 
 sealed class AuthUiState {
     object Idle : AuthUiState()
     object Loading : AuthUiState()
-    data class Success(val role: UserRole) : AuthUiState()
+    data class Success(val role: UserRole, val profileComplete: Boolean) : AuthUiState()
     data class Error(val message: String) : AuthUiState()
     data class AdminPending(val message: String) : AuthUiState()
+}
+
+sealed class ProfileUiState {
+    object Idle : ProfileUiState()
+    object Loading : ProfileUiState()
+    data class Success(val user: UserDto) : ProfileUiState()
+    data class Error(val message: String) : ProfileUiState()
 }
 
 // ── ViewModel ──────────────────────────────────────────────────────────────
@@ -29,8 +38,15 @@ class AuthViewModel(
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
+    private val _profileState = MutableStateFlow<ProfileUiState>(ProfileUiState.Idle)
+    val profileState: StateFlow<ProfileUiState> = _profileState.asStateFlow()
+
     fun resetState() {
         _uiState.value = AuthUiState.Idle
+    }
+
+    fun resetProfileState() {
+        _profileState.value = ProfileUiState.Idle
     }
 
     fun login(email: String, password: String) {
@@ -38,7 +54,7 @@ class AuthViewModel(
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
             _uiState.value = when (val result = repository.login(email.trim(), password)) {
-                is AuthResult.Success      -> AuthUiState.Success(result.role)
+                is AuthResult.Success      -> AuthUiState.Success(result.role, result.user.profileComplete)
                 is AuthResult.Error        -> AuthUiState.Error(result.message)
                 is AuthResult.AdminPending -> AuthUiState.AdminPending(result.message)
             }
@@ -50,9 +66,42 @@ class AuthViewModel(
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
             _uiState.value = when (val result = repository.register(email.trim(), password, displayName.trim(), role)) {
-                is AuthResult.Success      -> AuthUiState.Success(result.role)
+                is AuthResult.Success      -> AuthUiState.Success(result.role, result.user.profileComplete)
                 is AuthResult.Error        -> AuthUiState.Error(result.message)
                 is AuthResult.AdminPending -> AuthUiState.AdminPending(result.message)
+            }
+        }
+    }
+
+    fun completeProfile(phoneNumber: String, dateOfBirth: String) {
+        if (_profileState.value is ProfileUiState.Loading) return
+        viewModelScope.launch {
+            _profileState.value = ProfileUiState.Loading
+            _profileState.value = when (val result = repository.completeProfile(phoneNumber.trim(), dateOfBirth.trim())) {
+                is ProfileResult.Success -> ProfileUiState.Success(result.user)
+                is ProfileResult.Error   -> ProfileUiState.Error(result.message)
+            }
+        }
+    }
+
+    fun loadProfile() {
+        if (_profileState.value is ProfileUiState.Loading) return
+        viewModelScope.launch {
+            _profileState.value = ProfileUiState.Loading
+            _profileState.value = when (val result = repository.getProfile()) {
+                is ProfileResult.Success -> ProfileUiState.Success(result.user)
+                is ProfileResult.Error   -> ProfileUiState.Error(result.message)
+            }
+        }
+    }
+
+    fun updateProfile(displayName: String? = null, phoneNumber: String? = null, dateOfBirth: String? = null) {
+        if (_profileState.value is ProfileUiState.Loading) return
+        viewModelScope.launch {
+            _profileState.value = ProfileUiState.Loading
+            _profileState.value = when (val result = repository.updateProfile(displayName, phoneNumber, dateOfBirth)) {
+                is ProfileResult.Success -> ProfileUiState.Success(result.user)
+                is ProfileResult.Error   -> ProfileUiState.Error(result.message)
             }
         }
     }

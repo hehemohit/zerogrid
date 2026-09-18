@@ -27,6 +27,9 @@ import androidx.compose.foundation.border
 import androidx.compose.ui.draw.clip
 import com.example.zerogrid.mesh.engine.MeshEngine
 import com.example.zerogrid.mesh.engine.MeshChannelMode
+import com.example.zerogrid.auth.AuthViewModel
+import com.example.zerogrid.auth.ProfileUiState
+import com.example.zerogrid.network.AuthRepository
 import com.example.zerogrid.navigation.*
 import com.example.zerogrid.ui.theme.*
 import com.zerogrid.mesh.app.ui.UserRole
@@ -42,6 +45,9 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val sessionManager = remember { UserSessionManager.getInstance(context) }
+    val authViewModel = remember { AuthViewModel(AuthRepository(sessionManager)) }
+    val profileState by authViewModel.profileState.collectAsState()
+
     val meshEngine = remember { MeshEngine.getInstance(context) }
     val activeChannelMode by meshEngine.activeChannelMode.collectAsState()
 
@@ -56,6 +62,46 @@ fun SettingsScreen(
     var showEditNameDialog by remember { mutableStateOf(false) }
     var editNameValue by remember { mutableStateOf(sessionManager.getUserName()) }
     var displayName by remember { mutableStateOf(sessionManager.getUserName()) }
+
+    // Profile fields state
+    var phoneNumber by remember { mutableStateOf(sessionManager.getPhoneNumber()) }
+    var dateOfBirth by remember { mutableStateOf(sessionManager.getDateOfBirth()) }
+    var isProfileComplete by remember { mutableStateOf(sessionManager.isProfileComplete()) }
+
+    var showEditProfileDialog by remember { mutableStateOf(false) }
+    var editPhoneValue by remember { mutableStateOf(phoneNumber) }
+    var editDobValue by remember { mutableStateOf(dateOfBirth) }
+
+    // Sync profile on launch if logged in
+    LaunchedEffect(Unit) {
+        if (sessionManager.isLoggedIn()) {
+            authViewModel.loadProfile()
+        }
+    }
+
+    LaunchedEffect(profileState) {
+        when (val state = profileState) {
+            is ProfileUiState.Success -> {
+                state.user.displayName?.let {
+                    if (it.isNotBlank()) {
+                        displayName = it
+                        sessionManager.setUserName(it)
+                    }
+                }
+                state.user.phoneNumber?.let {
+                    phoneNumber = it
+                    sessionManager.setPhoneNumber(it)
+                }
+                state.user.dateOfBirth?.let {
+                    dateOfBirth = it
+                    sessionManager.setDateOfBirth(it)
+                }
+                isProfileComplete = state.user.profileComplete
+                sessionManager.setProfileComplete(state.user.profileComplete)
+            }
+            else -> {}
+        }
+    }
 
     // Logout confirm dialog
     var showLogoutDialog by remember { mutableStateOf(false) }
@@ -87,7 +133,7 @@ fun SettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        "Display name updated locally. Server sync coming soon.",
+                        "Synchronizes across mesh nodes and cloud profile.",
                         color = TextSecondary,
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace
@@ -100,6 +146,9 @@ fun SettingsScreen(
                     if (trimmed.isNotEmpty()) {
                         sessionManager.setUserName(trimmed)
                         displayName = trimmed
+                        if (sessionManager.isLoggedIn()) {
+                            authViewModel.updateProfile(displayName = trimmed)
+                        }
                     }
                     showEditNameDialog = false
                 }) {
@@ -108,6 +157,77 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showEditNameDialog = false }) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    // ── Edit Profile Details Dialog ──────────────────────────────────────
+    if (showEditProfileDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditProfileDialog = false },
+            containerColor = CardBackground,
+            title = {
+                Text("Emergency & Identity Details", color = TextPrimary, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = editPhoneValue,
+                        onValueChange = { editPhoneValue = it },
+                        label = { Text("Phone Number", color = TextSecondary) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedContainerColor = SurfaceDarker,
+                            unfocusedContainerColor = SurfaceDarker,
+                            focusedBorderColor = PrimaryCyan,
+                            unfocusedBorderColor = DividerColor,
+                            focusedLabelColor = PrimaryCyan
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = editDobValue,
+                        onValueChange = { editDobValue = it },
+                        label = { Text("Date of Birth (YYYY-MM-DD)", color = TextSecondary) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedContainerColor = SurfaceDarker,
+                            unfocusedContainerColor = SurfaceDarker,
+                            focusedBorderColor = PrimaryCyan,
+                            unfocusedBorderColor = DividerColor,
+                            focusedLabelColor = PrimaryCyan
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val trimmedPhone = editPhoneValue.trim()
+                    val trimmedDob = editDobValue.trim()
+                    sessionManager.setPhoneNumber(trimmedPhone)
+                    sessionManager.setDateOfBirth(trimmedDob)
+                    phoneNumber = trimmedPhone
+                    dateOfBirth = trimmedDob
+                    if (sessionManager.isLoggedIn()) {
+                        if (!isProfileComplete && trimmedPhone.isNotBlank()) {
+                            authViewModel.completeProfile(trimmedPhone, trimmedDob)
+                        } else {
+                            authViewModel.updateProfile(phoneNumber = trimmedPhone, dateOfBirth = trimmedDob)
+                        }
+                    }
+                    showEditProfileDialog = false
+                }) {
+                    Text("Save", color = PrimaryCyan, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditProfileDialog = false }) {
                     Text("Cancel", color = TextSecondary)
                 }
             }
@@ -277,8 +397,55 @@ fun SettingsScreen(
                         }
                     }
                     HorizontalDivider(color = DividerColor)
+                    // Phone Number
+                    SettingsNavigationRow(
+                        title = "Emergency Phone",
+                        subtitle = phoneNumber.ifEmpty { "Not set — tap to configure" },
+                        onClick = {
+                            editPhoneValue = phoneNumber
+                            editDobValue = dateOfBirth
+                            showEditProfileDialog = true
+                        }
+                    )
+                    HorizontalDivider(color = DividerColor)
+                    // Date of Birth
+                    SettingsNavigationRow(
+                        title = "Date of Birth",
+                        subtitle = dateOfBirth.ifEmpty { "Not set — tap to configure" },
+                        onClick = {
+                            editPhoneValue = phoneNumber
+                            editDobValue = dateOfBirth
+                            showEditProfileDialog = true
+                        }
+                    )
+                    HorizontalDivider(color = DividerColor)
+                    // Profile Status
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                if (!isProfileComplete) {
+                                    editPhoneValue = phoneNumber
+                                    editDobValue = dateOfBirth
+                                    showEditProfileDialog = true
+                                }
+                            }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Profile Status", color = TextSecondary, fontSize = 14.sp)
+                        Text(
+                            text = if (isProfileComplete) "VERIFIED" else "INCOMPLETE",
+                            color = if (isProfileComplete) StatusActive else AdminAmber,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                    HorizontalDivider(color = DividerColor)
                     // Account type
-                    AccountInfoRow("Account Type", "STANDARD")
+                    AccountInfoRow("Account Type", sessionManager.getAccountType())
                     HorizontalDivider(color = DividerColor)
                     // Member since
                     AccountInfoRow("Member Since", "Sep 2026")

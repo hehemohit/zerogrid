@@ -13,6 +13,11 @@ sealed class AuthResult {
     data class AdminPending(val message: String) : AuthResult()
 }
 
+sealed class ProfileResult {
+    data class Success(val user: UserDto) : ProfileResult()
+    data class Error(val message: String, val code: Int = 0) : ProfileResult()
+}
+
 // ── Repository ─────────────────────────────────────────────────────────────
 
 class AuthRepository(
@@ -35,14 +40,21 @@ class AuthRepository(
         }
     }
 
-    /** Persist successful auth session */
+    /** Persist successful auth session including profile fields */
     private fun persistSession(token: String, user: UserDto, role: UserRole) {
         sessionManager.setAuthToken(token)
         sessionManager.setUserId(user.id)
         sessionManager.setUserEmail(user.email)
         sessionManager.setUserName(user.displayName)
         sessionManager.setUserRole(role)
+        sessionManager.setProfileComplete(user.profileComplete)
+        user.phoneNumber?.let { sessionManager.setPhoneNumber(it) }
+        user.dateOfBirth?.let { sessionManager.setDateOfBirth(it) }
+        user.accountType?.let { sessionManager.setAccountType(it) }
     }
+
+    /** Bearer token header */
+    private fun bearerToken(): String = "Bearer ${sessionManager.getAuthToken() ?: ""}"
 
     suspend fun register(
         email: String,
@@ -95,6 +107,88 @@ class AuthRepository(
         } catch (e: Exception) {
             if (BuildConfig.DEBUG) e.printStackTrace()
             AuthResult.Error("No connection. Check your internet and try again.")
+        }
+    }
+
+    suspend fun completeProfile(phoneNumber: String, dateOfBirth: String): ProfileResult {
+        return try {
+            val response = api.completeProfile(
+                token = bearerToken(),
+                body = CompleteProfileRequest(phoneNumber, dateOfBirth)
+            )
+            when {
+                response.isSuccessful -> {
+                    val user = response.body()!!.user
+                    sessionManager.setProfileComplete(user.profileComplete)
+                    user.phoneNumber?.let { sessionManager.setPhoneNumber(it) }
+                    user.dateOfBirth?.let { sessionManager.setDateOfBirth(it) }
+                    ProfileResult.Success(user)
+                }
+                response.code() == 400 -> {
+                    val msg = parseErrorMessage(response.errorBody()?.string())
+                    ProfileResult.Error(msg, 400)
+                }
+                response.code() == 401 -> ProfileResult.Error("Session expired. Please log in again.", 401)
+                else -> ProfileResult.Error("Failed to complete profile. Please try again.", response.code())
+            }
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) e.printStackTrace()
+            ProfileResult.Error("No connection. Check your internet and try again.")
+        }
+    }
+
+    suspend fun getProfile(): ProfileResult {
+        return try {
+            val response = api.getMe(bearerToken())
+            when {
+                response.isSuccessful -> {
+                    val user = response.body()!!.user
+                    // Refresh session cache
+                    sessionManager.setUserName(user.displayName)
+                    sessionManager.setProfileComplete(user.profileComplete)
+                    user.phoneNumber?.let { sessionManager.setPhoneNumber(it) }
+                    user.dateOfBirth?.let { sessionManager.setDateOfBirth(it) }
+                    user.accountType?.let { sessionManager.setAccountType(it) }
+                    ProfileResult.Success(user)
+                }
+                response.code() == 401 -> ProfileResult.Error("Session expired. Please log in again.", 401)
+                response.code() == 404 -> ProfileResult.Error("User account not found.", 404)
+                else -> ProfileResult.Error("Failed to load profile.", response.code())
+            }
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) e.printStackTrace()
+            ProfileResult.Error("No connection. Check your internet and try again.")
+        }
+    }
+
+    suspend fun updateProfile(
+        displayName: String? = null,
+        phoneNumber: String? = null,
+        dateOfBirth: String? = null
+    ): ProfileResult {
+        return try {
+            val response = api.updateProfile(
+                token = bearerToken(),
+                body = UpdateProfileRequest(displayName, phoneNumber, dateOfBirth)
+            )
+            when {
+                response.isSuccessful -> {
+                    val user = response.body()!!.user
+                    sessionManager.setUserName(user.displayName)
+                    user.phoneNumber?.let { sessionManager.setPhoneNumber(it) }
+                    user.dateOfBirth?.let { sessionManager.setDateOfBirth(it) }
+                    ProfileResult.Success(user)
+                }
+                response.code() == 400 -> {
+                    val msg = parseErrorMessage(response.errorBody()?.string())
+                    ProfileResult.Error(msg, 400)
+                }
+                response.code() == 401 -> ProfileResult.Error("Session expired. Please log in again.", 401)
+                else -> ProfileResult.Error("Failed to update profile. Please try again.", response.code())
+            }
+        } catch (e: Exception) {
+            if (BuildConfig.DEBUG) e.printStackTrace()
+            ProfileResult.Error("No connection. Check your internet and try again.")
         }
     }
 }

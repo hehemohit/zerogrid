@@ -18,6 +18,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import com.example.zerogrid.admin.AdminPanelScreen
 import com.example.zerogrid.auth.LoginScreen
+import com.example.zerogrid.auth.ProfileCompletionScreen
 import com.example.zerogrid.auth.RegisterScreen
 import com.example.zerogrid.navigation.ZeroGridApp
 import com.example.zerogrid.service.MeshForegroundService
@@ -36,10 +37,14 @@ fun MainAppGateway() {
     // Determine starting screen: auto-login if a token is already stored
     val startScreen = remember {
         if (sessionManager.isLoggedIn()) {
-            when (sessionManager.getUserRole()) {
-                UserRole.ADMIN   -> AppScreen.AdminPanel
-                UserRole.CITIZEN -> AppScreen.UserDashboard
-                null             -> AppScreen.Login
+            if (!sessionManager.isProfileComplete()) {
+                AppScreen.ProfileCompletion
+            } else {
+                when (sessionManager.getUserRole()) {
+                    UserRole.ADMIN   -> AppScreen.AdminPanel
+                    UserRole.CITIZEN -> AppScreen.UserDashboard
+                    null             -> AppScreen.Login
+                }
             }
         } else {
             AppScreen.Login
@@ -47,6 +52,10 @@ fun MainAppGateway() {
     }
 
     var currentScreen by remember { mutableStateOf<AppScreen>(startScreen) }
+
+    fun routeToDashboard(role: UserRole) {
+        currentScreen = if (role == UserRole.ADMIN) AppScreen.AdminPanel else AppScreen.UserDashboard
+    }
 
     fun logout() {
         Log.d("MainAppGateway", "User logged out. Stopping mesh service.")
@@ -70,8 +79,13 @@ fun MainAppGateway() {
     }
 
     // Back-handling: only block back on screens where it makes sense
-    BackHandler(enabled = currentScreen == AppScreen.Register) {
-        currentScreen = AppScreen.Login
+    BackHandler(enabled = currentScreen == AppScreen.Register || currentScreen == AppScreen.ProfileCompletion) {
+        if (currentScreen == AppScreen.Register) {
+            currentScreen = AppScreen.Login
+        } else if (currentScreen == AppScreen.ProfileCompletion) {
+            val role = sessionManager.getUserRole() ?: UserRole.CITIZEN
+            routeToDashboard(role)
+        }
     }
 
     when (currentScreen) {
@@ -81,9 +95,12 @@ fun MainAppGateway() {
             LoginScreen(
                 sessionManager = sessionManager,
                 onNavigateToRegister = { currentScreen = AppScreen.Register },
-                onLoginSuccess = { role ->
-                    currentScreen = if (role == UserRole.ADMIN) AppScreen.AdminPanel
-                                   else AppScreen.UserDashboard
+                onLoginSuccess = { role, profileComplete ->
+                    if (!profileComplete) {
+                        currentScreen = AppScreen.ProfileCompletion
+                    } else {
+                        routeToDashboard(role)
+                    }
                 }
             )
         }
@@ -92,9 +109,27 @@ fun MainAppGateway() {
             RegisterScreen(
                 sessionManager = sessionManager,
                 onNavigateToLogin = { currentScreen = AppScreen.Login },
-                onRegisterSuccess = { role ->
-                    currentScreen = if (role == UserRole.ADMIN) AppScreen.AdminPanel
-                                   else AppScreen.UserDashboard
+                onRegisterSuccess = { role, profileComplete ->
+                    if (!profileComplete) {
+                        currentScreen = AppScreen.ProfileCompletion
+                    } else {
+                        routeToDashboard(role)
+                    }
+                }
+            )
+        }
+
+        // ── Profile completion ─────────────────────────────────────────
+        AppScreen.ProfileCompletion -> {
+            ProfileCompletionScreen(
+                sessionManager = sessionManager,
+                onProfileCompleted = {
+                    val role = sessionManager.getUserRole() ?: UserRole.CITIZEN
+                    routeToDashboard(role)
+                },
+                onSkip = {
+                    val role = sessionManager.getUserRole() ?: UserRole.CITIZEN
+                    routeToDashboard(role)
                 }
             )
         }

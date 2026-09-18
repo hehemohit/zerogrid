@@ -26,7 +26,11 @@ import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.ui.theme.*
 
 @Composable
-fun FileTransferScreen(onNavigate: (Screen) -> Unit = {}) {
+fun FileTransferScreen(
+    onNavigate: (Screen) -> Unit = {},
+    isTransferActive: Boolean = false,
+    activeFileName: String = ""
+) {
     Scaffold(
         containerColor = DarkBackground,
         topBar = { FileTransferTopBar(onBackClick = { onNavigate(Screen.FILES) }) }
@@ -39,129 +43,136 @@ fun FileTransferScreen(onNavigate: (Screen) -> Unit = {}) {
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-            TransferProgressHeaderCard()
-            Spacer(modifier = Modifier.height(16.dp))
 
-            // Stats Row: Speed & ETA
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                StatCard(
-                    modifier = Modifier.weight(1f),
-                    label = "Speed",
-                    value = "2.1 MB/s"
+            if (!isTransferActive) {
+                // Standby Zero State
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = CardBackground),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, DividerColor)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(28.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .background(SurfaceDarker, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.SwapHoriz,
+                                contentDescription = null,
+                                tint = StatusActive,
+                                modifier = Modifier.size(32.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "Transfer Channel Standby",
+                            color = TextPrimary,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "No outbound or inbound chunk streams currently active. Files are transferred directly between peers in 64 KB encrypted blocks.",
+                            color = TextSecondary,
+                            fontSize = 13.sp,
+                            lineHeight = 18.sp,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Button(
+                            onClick = { onNavigate(Screen.SEND_FILE) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = StatusActive),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                text = "Queue File for Transmit",
+                                color = Color.Black,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Protocol Specifications
+                Text(
+                    text = "PROTOCOL SPECIFICATIONS",
+                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
                 )
-                StatCard(
-                    modifier = Modifier.weight(1f),
-                    label = "ETA",
-                    value = "00:00:03",
-                    valueColor = StatusActive
-                )
-            }
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
+                ProtocolDetailsCard()
+                Spacer(modifier = Modifier.height(32.dp))
+            } else {
+                TransferProgressHeaderCard(fileName = activeFileName)
+                Spacer(modifier = Modifier.height(16.dp))
 
-            // Chunks Card
-            ChunksCard()
-            Spacer(modifier = Modifier.height(12.dp))
-
-            // Integrity Card
-            IntegrityCard()
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Progress Bar Line
-            LinearProgressIndicator(
-                progress = { 0.68f },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(4.dp),
-                color = StatusActive,
-                trackColor = SurfaceDarker,
-                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Mesh Route Section
-            Text(
-                text = "Mesh Route (2 Hops)",
-                color = TextSecondary,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            MeshRouteCard()
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Status Log Section
-            Text(
-                text = "Status Log",
-                color = TextSecondary,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            StatusLogCard()
-            Spacer(modifier = Modifier.height(20.dp))
-
-            // Protocol Details Section
-            Text(
-                text = "Protocol Details",
-                color = TextSecondary,
-                fontSize = 11.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            ProtocolDetailsCard()
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Action Buttons
-            OutlinedButton(
-                onClick = { },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                colors = ButtonDefaults.outlinedButtonColors(containerColor = CardBackground),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, StatusActive)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = Icons.Outlined.Pause, contentDescription = null, tint = StatusActive, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Pause Transfer",
-                        color = StatusActive,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
+                // Stats Row: Speed & ETA
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    StatCard(
+                        modifier = Modifier.weight(1f),
+                        label = "Speed",
+                        value = "Mesh Direct"
+                    )
+                    StatCard(
+                        modifier = Modifier.weight(1f),
+                        label = "Status",
+                        value = "Streaming",
+                        valueColor = StatusActive
                     )
                 }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            OutlinedButton(
-                onClick = { },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(48.dp),
-                colors = ButtonDefaults.outlinedButtonColors(containerColor = CardBackground),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, AlertPink)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(imageVector = Icons.Outlined.Close, contentDescription = null, tint = AlertPink, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Cancel Transfer",
-                        color = AlertPink,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = FontFamily.Monospace
-                    )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Protocol Details Section
+                Text(
+                    text = "Protocol Details",
+                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                ProtocolDetailsCard()
+                Spacer(modifier = Modifier.height(24.dp))
+
+                OutlinedButton(
+                    onClick = { onNavigate(Screen.FILES) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(containerColor = CardBackground),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, AlertPink)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Outlined.Close, contentDescription = null, tint = AlertPink, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Close Transfer View",
+                            color = AlertPink,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
                 }
+                Spacer(modifier = Modifier.height(32.dp))
             }
-            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 }
@@ -224,7 +235,7 @@ private fun FileTransferTopBar(onBackClick: () -> Unit = {}) {
 }
 
 @Composable
-private fun TransferProgressHeaderCard() {
+private fun TransferProgressHeaderCard(fileName: String = "Mesh Document") {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -270,7 +281,7 @@ private fun TransferProgressHeaderCard() {
                 Icon(imageVector = Icons.Outlined.PictureAsPdf, contentDescription = null, tint = AlertPink, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Emergency-Map.pdf",
+                    text = fileName.ifEmpty { "Mesh-Document.bin" },
                     color = TextPrimary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold

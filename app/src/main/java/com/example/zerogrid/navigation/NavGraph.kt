@@ -98,14 +98,27 @@ fun ZeroGridApp(onLogout: () -> Unit = {}) {
                         peerId = selectedPeerId,
                         onNavigate = { navigateTo(it) }
                     )
-                    Screen.MESH -> NearbyDevicesScreen(onNavigate = { navigateTo(it) })
+                    Screen.MESH -> NearbyDevicesScreen(
+                        onNavigate = { navigateTo(it) },
+                        onBackClick = { navigateBack() },
+                        onOpenPeerDetails = { peerId ->
+                            selectedPeerId = peerId
+                            navigateTo(Screen.PEER_DETAILS)
+                        },
+                        onOpenPeerChat = { peerId -> openPeerChat(peerId) }
+                    )
                     Screen.FILES -> FilesScreen(onNavigate = { navigateTo(it) })
                     Screen.SETTINGS -> SettingsScreen(onNavigate = { navigateTo(it) }, onLogout = onLogout)
                     Screen.SOS_CENTER -> SosCenterScreen(onNavigate = { navigateTo(it) })
                     Screen.SEND_SOS -> SendSosScreen(onNavigate = { navigateTo(it) })
                     Screen.SEND_FILE -> SendFileScreen(onNavigate = { navigateTo(it) })
                     Screen.FILE_TRANSFER -> FileTransferScreen(onNavigate = { navigateTo(it) })
-                    Screen.PEER_DETAILS -> PeerDetailsScreen(onNavigate = { navigateTo(it) })
+                    Screen.PEER_DETAILS -> PeerDetailsScreen(
+                        peerId = selectedPeerId,
+                        onNavigate = { navigateTo(it) },
+                        onOpenPeerChat = { peerId -> openPeerChat(peerId) },
+                        onBackClick = { navigateBack() }
+                    )
                     Screen.CHANNELS -> ChannelsScreen(onNavigate = { navigateTo(it) })
                     Screen.CHAT_DETAIL -> ChatDetailScreen(onNavigate = { navigateTo(it) })
                     Screen.SPLASH -> SplashScreen(onNavigate = { navigateTo(it) })

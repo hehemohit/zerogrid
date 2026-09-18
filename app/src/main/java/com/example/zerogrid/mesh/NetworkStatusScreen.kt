@@ -3,6 +3,7 @@ package com.example.zerogrid.mesh
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -28,9 +29,14 @@ fun NetworkStatusScreen(onNavigate: (Screen) -> Unit = {}) {
     val meshEngine = MeshEngine.getInstance(LocalContext.current)
     val peers by meshEngine.connectedPeers.collectAsState()
     val isMeshActive by meshEngine.isMeshActive.collectAsState()
+    val activeChannelMode by meshEngine.activeChannelMode.collectAsState()
+    val receivedMessages by meshEngine.receivedMessages.collectAsState()
+    val sosAlerts by meshEngine.sosAlerts.collectAsState()
+    val packetsRelayedCount by meshEngine.packetsRelayedCount.collectAsState()
 
     val directPeers = peers.count { it.hopDistance == 1 }
     val relayedPeers = peers.count { it.hopDistance > 1 }
+    val totalRouted = packetsRelayedCount + receivedMessages.size + sosAlerts.size
 
     Scaffold(
         containerColor = DarkBackground,
@@ -46,8 +52,16 @@ fun NetworkStatusScreen(onNavigate: (Screen) -> Unit = {}) {
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
+            NetworkHealthCard(
+                isMeshActive = isMeshActive,
+                activeChannel = activeChannelMode.label,
+                nodeCount = peers.size + 1
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             Text(
-                text = "TOPOLOGY METRICS",
+                text = "NETWORK METRICS",
                 color = TextSecondary,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
@@ -60,19 +74,18 @@ fun NetworkStatusScreen(onNavigate: (Screen) -> Unit = {}) {
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 MetricCard(
-                    title = "Active Nodes",
-                    value = peers.size.toString(),
-                    subtext = "$directPeers Direct, $relayedPeers Relayed",
+                    title = "Connected Nodes",
+                    value = (peers.size + 1).toString(),
+                    subtext = "${directPeers} direct • ${relayedPeers} relayed",
                     modifier = Modifier.weight(1f)
                 )
                 MetricCard(
-                    title = "Max Hop Count",
-                    value = if (peers.isEmpty()) "0" else peers.maxOf { it.hopDistance }.toString(),
-                    subtext = "Protocol limit: 5",
+                    title = "Max Hop Reach",
+                    value = (peers.maxOfOrNull { it.hopDistance } ?: 1).toString(),
+                    subtext = "Mesh radius limit: 5",
                     modifier = Modifier.weight(1f)
                 )
             }
-            // ... (rest of the metric cards)
 
             Spacer(modifier = Modifier.height(10.dp))
 
@@ -81,15 +94,15 @@ fun NetworkStatusScreen(onNavigate: (Screen) -> Unit = {}) {
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 MetricCard(
-                    title = "Packets Relayed",
-                    value = "1,428",
-                    subtext = "0.02% Drop Rate",
+                    title = "Packets Processed",
+                    value = totalRouted.toString(),
+                    subtext = "${receivedMessages.size} rx • ${packetsRelayedCount} relay • ${sosAlerts.size} SOS",
                     modifier = Modifier.weight(1f)
                 )
                 MetricCard(
-                    title = "Throughput",
-                    value = "184 KB/s",
-                    subtext = "BLE + Wi-Fi Direct",
+                    title = "Active Channel",
+                    value = activeChannelMode.label,
+                    subtext = if (activeChannelMode == com.example.zerogrid.mesh.engine.MeshChannelMode.BLE) "Low-power (~2 KB/s)" else "High-speed (~10 MB/s)",
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -97,7 +110,7 @@ fun NetworkStatusScreen(onNavigate: (Screen) -> Unit = {}) {
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "ACTIVE TRANSPORTS",
+                text = "ACTIVE TRANSPORTS (SINGLE-RADIO EXCLUSIVE)",
                 color = TextSecondary,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
@@ -105,20 +118,23 @@ fun NetworkStatusScreen(onNavigate: (Screen) -> Unit = {}) {
             )
             Spacer(modifier = Modifier.height(10.dp))
 
+            val isBleActive = isMeshActive && activeChannelMode == com.example.zerogrid.mesh.engine.MeshChannelMode.BLE
+            val isWifiActive = isMeshActive && activeChannelMode == com.example.zerogrid.mesh.engine.MeshChannelMode.WIFI_DIRECT
+
             TransportStatusCard(
                 name = "Bluetooth Low Energy (BLE)",
-                status = if (isMeshActive) "Advertising & Scanning" else "Offline",
-                details = "Frequency: 2.4 GHz  •  Status: OK",
-                isActive = isMeshActive
+                status = if (!isMeshActive) "Offline" else if (isBleActive) "Advertising & Scanning (Active)" else "Standby (Single-Radio Policy)",
+                details = if (isBleActive) "Frequency: 2.4 GHz • GATT Mesh Server Active" else "Radio standby • Conflict prevention policy",
+                isActive = isBleActive
             )
 
             Spacer(modifier = Modifier.height(10.dp))
 
             TransportStatusCard(
                 name = "Wi-Fi Direct (P2P)",
-                status = if (isMeshActive) "Discovery Protocol Active" else "Offline",
-                details = "Band: 2.4/5 GHz  •  TCP Server: port 8888",
-                isActive = isMeshActive
+                status = if (!isMeshActive) "Offline" else if (isWifiActive) "P2P Discovery & Server Active" else "Standby (Single-Radio Policy)",
+                details = if (isWifiActive) "Band: 2.4/5 GHz • TCP Server: port 8888" else "Radio standby • Conflict prevention policy",
+                isActive = isWifiActive
             )
 
             Spacer(modifier = Modifier.height(32.dp))
@@ -147,6 +163,52 @@ private fun NetworkStatusTopBar(onBackClick: () -> Unit) {
             )
         }
         HorizontalDivider(color = DividerColor, thickness = 1.dp)
+    }
+}
+
+@Composable
+private fun NetworkHealthCard(isMeshActive: Boolean, activeChannel: String, nodeCount: Int) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .background(if (isMeshActive) StatusActive else AlertPink, CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isMeshActive) "MESH OPERATIONAL" else "MESH OFFLINE",
+                        color = if (isMeshActive) StatusActive else AlertPink,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+                Text(
+                    text = activeChannel,
+                    color = TextSecondary,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = if (isMeshActive) "$nodeCount nodes in local reachability cluster" else "Radio transports stopped",
+                color = TextPrimary,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
     }
 }
 

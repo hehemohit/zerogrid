@@ -2,6 +2,7 @@ package com.example.zerogrid.mesh
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -16,22 +17,43 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.mesh.engine.MeshEngine
+import com.example.zerogrid.mesh.engine.MeshNode
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
-fun PeerDetailsScreen(onNavigate: (Screen) -> Unit = {}) {
+fun PeerDetailsScreen(
+    peerId: String = "",
+    onNavigate: (Screen) -> Unit = {},
+    onOpenPeerChat: (String) -> Unit = {},
+    onBackClick: () -> Unit = { onNavigate(Screen.MESH) }
+) {
     var trustDevice by remember { mutableStateOf(true) }
+    val meshEngine = MeshEngine.getInstance(LocalContext.current)
+    val peers by meshEngine.connectedPeers.collectAsState()
+    val activeChannelMode by meshEngine.activeChannelMode.collectAsState()
+
+    val peer = remember(peers, peerId) { peers.find { it.nodeId == peerId } }
+    val peerAlias = peer?.alias ?: if (peerId.isNotEmpty()) "Node-${peerId.takeLast(6)}" else "Direct Mesh Node"
+    val isConnected = peer != null
+    val hopDistance = peer?.hopDistance ?: 1
+    val transportType = peer?.transportType ?: activeChannelMode.label
+    val rssi = peer?.rssi ?: -70
+    val signalBars = if (rssi > -60) 4 else if (rssi > -80) 3 else 1
+    val deviceIdString = if (peerId.isNotEmpty()) "ZG-${peerId.takeLast(6).uppercase()}" else "ZG-LOCAL"
+    val fingerprintString = if (peerId.isNotEmpty()) peerId.chunked(2).take(4).joinToString(":") { it.uppercase() } else "DIRECT-LINK"
 
     Scaffold(
         containerColor = DarkBackground,
-        topBar = { PeerDetailsTopBar(onBackClick = { onNavigate(Screen.MESH) }) },
+        topBar = { PeerDetailsTopBar(onBackClick = onBackClick) },
         bottomBar = { ZeroGridBottomBar(currentScreen = Screen.MESH, onNavigate = onNavigate) }
     ) { paddingValues ->
         Column(
@@ -43,21 +65,56 @@ fun PeerDetailsScreen(onNavigate: (Screen) -> Unit = {}) {
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(20.dp))
-            PeerHeaderSection()
+            PeerHeaderSection(
+                alias = peerAlias,
+                isConnected = isConnected,
+                hopDistance = hopDistance,
+                transportType = transportType
+            )
             Spacer(modifier = Modifier.height(24.dp))
-            ActionButtonsRow()
+            ActionButtonsRow(
+                onMessageClick = {
+                    if (peerId.isNotEmpty()) onOpenPeerChat(peerId)
+                    else onNavigate(Screen.MESSAGES)
+                },
+                onSendFileClick = { onNavigate(Screen.SEND_FILE) }
+            )
             Spacer(modifier = Modifier.height(24.dp))
-            ConnectionInfoCard()
+            ConnectionInfoCard(
+                transport = transportType,
+                isConnected = isConnected,
+                signalBars = signalBars,
+                hopDistance = hopDistance,
+                peerId = peerId
+            )
             Spacer(modifier = Modifier.height(20.dp))
-            RouteToPeerCard()
+            RouteToPeerCard(
+                alias = peerAlias,
+                hopDistance = hopDistance,
+                isConnected = isConnected
+            )
             Spacer(modifier = Modifier.height(20.dp))
-            IdentitySecurityCard()
+            IdentitySecurityCard(
+                deviceId = deviceIdString,
+                fingerprint = fingerprintString
+            )
             Spacer(modifier = Modifier.height(16.dp))
             TrustDeviceCard(checked = trustDevice, onCheckedChange = { trustDevice = it })
             Spacer(modifier = Modifier.height(16.dp))
-            MenuNavigationItem(icon = Icons.Outlined.Folder, title = "View Shared Files", titleColor = TextPrimary)
+            MenuNavigationItem(
+                icon = Icons.Outlined.Folder,
+                title = "View Shared Files",
+                titleColor = TextPrimary,
+                onClick = { onNavigate(Screen.FILES) }
+            )
             Spacer(modifier = Modifier.height(8.dp))
-            MenuNavigationItem(icon = Icons.Outlined.DeleteOutline, title = "Remove / Forget Device", titleColor = AlertPink, showIcon = false)
+            MenuNavigationItem(
+                icon = Icons.Outlined.DeleteOutline,
+                title = "Back to Network",
+                titleColor = TextSecondary,
+                showIcon = false,
+                onClick = onBackClick
+            )
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
@@ -102,49 +159,54 @@ private fun PeerDetailsTopBar(onBackClick: () -> Unit = {}) {
 }
 
 @Composable
-private fun PeerHeaderSection() {
+private fun PeerHeaderSection(
+    alias: String,
+    isConnected: Boolean,
+    hopDistance: Int,
+    transportType: String
+) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
                 .size(80.dp)
                 .background(SurfaceDarker, CircleShape)
-                .border(1.dp, StatusActive, CircleShape),
+                .border(1.dp, if (isConnected) StatusActive else TextSecondary, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 imageVector = Icons.Outlined.Router,
                 contentDescription = "Device",
-                tint = StatusActive,
+                tint = if (isConnected) StatusActive else TextSecondary,
                 modifier = Modifier.size(36.dp)
             )
             Box(
                 modifier = Modifier
                     .size(12.dp)
-                    .background(StatusActive, CircleShape)
+                    .background(if (isConnected) StatusActive else TextSecondary, CircleShape)
                     .align(Alignment.BottomEnd)
             )
         }
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "Rescue Team",
+            text = alias,
             color = TextPrimary,
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold
         )
         Spacer(modifier = Modifier.height(4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(modifier = Modifier.size(6.dp).background(StatusActive, CircleShape))
+            Box(modifier = Modifier.size(6.dp).background(if (isConnected) StatusActive else TextSecondary, CircleShape))
             Spacer(modifier = Modifier.width(6.dp))
             Text(
-                text = "Connected • 2 hops away",
-                color = StatusActive,
+                text = if (isConnected) "Connected • ${if (hopDistance == 1) "Direct Link" else "$hopDistance hops away"}" else "Standby / Searching",
+                color = if (isConnected) StatusActive else TextSecondary,
                 fontSize = 13.sp,
                 fontFamily = FontFamily.Monospace
             )
         }
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "ZeroGrid Device",
+            text = "ZeroGrid Node ($transportType)",
             color = TextSecondary,
             fontSize = 12.sp,
             fontFamily = FontFamily.Monospace
@@ -174,13 +236,16 @@ private fun PeerHeaderSection() {
 }
 
 @Composable
-private fun ActionButtonsRow() {
+private fun ActionButtonsRow(
+    onMessageClick: () -> Unit,
+    onSendFileClick: () -> Unit
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Button(
-            onClick = { },
+            onClick = onMessageClick,
             modifier = Modifier
                 .weight(1f)
                 .height(48.dp),
@@ -193,7 +258,7 @@ private fun ActionButtonsRow() {
         }
 
         OutlinedButton(
-            onClick = { },
+            onClick = onSendFileClick,
             modifier = Modifier
                 .weight(1f)
                 .height(48.dp),
@@ -209,7 +274,13 @@ private fun ActionButtonsRow() {
 }
 
 @Composable
-private fun ConnectionInfoCard() {
+private fun ConnectionInfoCard(
+    transport: String,
+    isConnected: Boolean,
+    signalBars: Int,
+    hopDistance: Int,
+    peerId: String
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -224,19 +295,17 @@ private fun ConnectionInfoCard() {
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(bottom = 12.dp)
             )
-            ConnectionRow("Connection", "Wi-Fi Direct")
+            ConnectionRow("Transport", transport)
             HorizontalDivider(color = DividerColor, thickness = 1.dp)
-            ConnectionRow("Status", "Connected")
+            ConnectionRow("Status", if (isConnected) "Connected" else "Standby")
             HorizontalDivider(color = DividerColor, thickness = 1.dp)
-            ConnectionSignalRow("Signal", "Good", 3)
+            ConnectionSignalRow("Signal", if (isConnected) (if (signalBars >= 3) "Strong" else "Stable") else "N/A", signalBars)
             HorizontalDivider(color = DividerColor, thickness = 1.dp)
-            ConnectionRow("Hop Count", "2 hops")
+            ConnectionRow("Hop Distance", if (isConnected) "$hopDistance hop(s)" else "N/A")
             HorizontalDivider(color = DividerColor, thickness = 1.dp)
-            ConnectionRow("Next Hop", "Device-7A42")
+            ConnectionRow("Link Type", if (hopDistance == 1) "Direct P2P Link" else "Multi-hop Relay")
             HorizontalDivider(color = DividerColor, thickness = 1.dp)
-            ConnectionRow("Latency", "45 ms")
-            HorizontalDivider(color = DividerColor, thickness = 1.dp)
-            ConnectionRow("Last Seen", "Just now", valueColor = StatusActive)
+            ConnectionRow("Node ID", if (peerId.isNotEmpty()) peerId.take(12) + "..." else "Standby", valueColor = StatusActive)
         }
     }
 }
@@ -265,8 +334,8 @@ private fun ConnectionSignalRow(label: String, value: String, signalBars: Int) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(text = label, color = TextSecondary, fontSize = 14.sp)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp), modifier = Modifier.padding(end = 8.dp)) {
                 for (i in 1..4) {
                     Box(
                         modifier = Modifier
@@ -285,7 +354,11 @@ private fun ConnectionSignalRow(label: String, value: String, signalBars: Int) {
 }
 
 @Composable
-private fun RouteToPeerCard() {
+private fun RouteToPeerCard(
+    alias: String,
+    hopDistance: Int,
+    isConnected: Boolean
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -309,58 +382,72 @@ private fun RouteToPeerCard() {
             }
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Route Graph Visual
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(SurfaceDarker, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(imageVector = Icons.Outlined.PhoneAndroid, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+            if (!isConnected) {
+                Text(
+                    text = "No active mesh route • Node is out of direct and relay range",
+                    color = TextSecondary,
+                    fontSize = 13.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            } else {
+                // Route Graph Visual
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .background(SurfaceDarker, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(imageVector = Icons.Outlined.PhoneAndroid, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
+                    }
+                    Text(text = "You", color = TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 4.dp))
+
+                    Box(modifier = Modifier.width(2.dp).height(24.dp).background(StatusActive))
+
+                    if (hopDistance > 1) {
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(SurfaceDarker, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(imageVector = Icons.Outlined.Router, contentDescription = null, tint = StatusActive, modifier = Modifier.size(16.dp))
+                        }
+                        Text(text = "Relay (${hopDistance - 1} hops)", color = TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 4.dp))
+
+                        Box(modifier = Modifier.width(2.dp).height(24.dp).background(StatusActive))
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(SurfaceDarker, CircleShape)
+                            .border(1.dp, StatusActive, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(imageVector = Icons.Outlined.Router, contentDescription = null, tint = StatusActive, modifier = Modifier.size(20.dp))
+                    }
+                    Text(text = alias, color = StatusActive, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
                 }
-                Text(text = "You", color = TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 4.dp))
 
-                Box(modifier = Modifier.width(2.dp).height(24.dp).background(StatusActive))
-
-                Box(
-                    modifier = Modifier
-                        .size(32.dp)
-                        .background(SurfaceDarker, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(imageVector = Icons.Outlined.Router, contentDescription = null, tint = StatusActive, modifier = Modifier.size(16.dp))
-                }
-                Text(text = "Device-7A42", color = TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(top = 4.dp))
-
-                Box(modifier = Modifier.width(2.dp).height(24.dp).background(StatusActive))
-
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .background(SurfaceDarker, CircleShape)
-                        .border(1.dp, StatusActive, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(imageVector = Icons.Outlined.Router, contentDescription = null, tint = StatusActive, modifier = Modifier.size(20.dp))
-                }
-                Text(text = "Rescue Team", color = StatusActive, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 4.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = if (hopDistance == 1) "Direct peer-to-peer radio link established." else "Traffic forwarded through encrypted mesh relay nodes.",
+                    color = TextSecondary,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                )
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "Traffic is forwarded through encrypted relay nodes.",
-                color = TextSecondary,
-                fontSize = 12.sp,
-                fontFamily = FontFamily.Monospace,
-                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
-            )
         }
     }
 }
 
 @Composable
-private fun IdentitySecurityCard() {
+private fun IdentitySecurityCard(
+    deviceId: String,
+    fingerprint: String
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -380,30 +467,21 @@ private fun IdentitySecurityCard() {
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(text = "Peer Identity Verified", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Text(text = "Verified", color = StatusActive, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                    Text(text = "Authenticated via ZeroGrid Keys", color = StatusActive, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                 }
             }
             Spacer(modifier = Modifier.height(16.dp))
             HorizontalDivider(color = DividerColor, thickness = 1.dp)
             Spacer(modifier = Modifier.height(16.dp))
-            ConnectionRow("Device ID", "ZG-7A42-••••")
-            ConnectionRow("Fingerprint", "84:A7:••:••:21:F9")
+            ConnectionRow("Device ID", deviceId)
+            ConnectionRow("Fingerprint", fingerprint)
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Verify this device's identity before sharing sensitive information.",
+                text = "Packets signed and validated with local cryptographic keys.",
                 color = TextSecondary,
                 fontSize = 12.sp,
-                modifier = Modifier.padding(bottom = 16.dp)
+                modifier = Modifier.padding(bottom = 8.dp)
             )
-            OutlinedButton(
-                onClick = { },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
-                border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor)
-            ) {
-                Text(text = "Verify Identity", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-            }
         }
     }
 }
@@ -447,9 +525,17 @@ private fun TrustDeviceCard(checked: Boolean, onCheckedChange: (Boolean) -> Unit
 }
 
 @Composable
-private fun MenuNavigationItem(icon: ImageVector, title: String, titleColor: Color, showIcon: Boolean = true) {
+private fun MenuNavigationItem(
+    icon: ImageVector,
+    title: String,
+    titleColor: Color,
+    showIcon: Boolean = true,
+    onClick: () -> Unit = {}
+) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = CardBackground),
         shape = RoundedCornerShape(12.dp)
     ) {

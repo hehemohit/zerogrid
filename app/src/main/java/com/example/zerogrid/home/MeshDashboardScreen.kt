@@ -38,6 +38,7 @@ fun MeshDashboardScreen(onNavigate: (Screen) -> Unit = {}) {
     val peers by meshEngine.connectedPeers.collectAsState()
     val isMeshActive by meshEngine.isMeshActive.collectAsState()
     val activeChannelMode by meshEngine.activeChannelMode.collectAsState()
+    val sosAlerts by meshEngine.sosAlerts.collectAsState()
 
     Scaffold(
         containerColor = DarkBackground,
@@ -69,7 +70,11 @@ fun MeshDashboardScreen(onNavigate: (Screen) -> Unit = {}) {
                 onSelectChannel = { newMode -> meshEngine.setMeshChannelMode(newMode) }
             )
             Spacer(modifier = Modifier.height(16.dp))
-            QuickActionsGrid(peersCount = peers.size, onNavigate = onNavigate)
+            QuickActionsGrid(
+                peersCount = peers.size,
+                sosAlertsCount = sosAlerts.size,
+                onNavigate = onNavigate
+            )
             Spacer(modifier = Modifier.height(24.dp))
             NearbyDevicesSection(peers = peers, onNavigate = onNavigate)
             Spacer(modifier = Modifier.height(32.dp)) // Extra space for FAB
@@ -189,17 +194,17 @@ private fun MeshStatusCard(
             // Metrics Grid
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 MetricCard("Peers", peersCount.toString(), Modifier.weight(1f))
-                MetricCard("Routes", if (peersCount > 0) "1" else "0", Modifier.weight(1f))
+                MetricCard("Routes", if (peersCount > 0) "$peersCount direct" else "0", Modifier.weight(1f))
             }
             Spacer(modifier = Modifier.height(12.dp))
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                MetricCard("Relays", "0", Modifier.weight(1f))
-                MetricCard("Latency", if (peersCount > 0) "45ms" else "--", Modifier.weight(1f))
+                MetricCard("Transport", activeChannelMode.label, Modifier.weight(1f))
+                MetricCard("Status", if (peersCount > 0) "Connected" else "Standby", Modifier.weight(1f))
             }
 
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Internet unavailable • ZeroGrid operating normally",
+                text = if (peersCount > 0) "Decentralized mesh active • $peersCount peer(s) reachable" else "Ready for peer discovery • Single-radio operation",
                 color = TextSecondary,
                 fontSize = 13.sp
             )
@@ -345,7 +350,13 @@ private fun MetricCard(label: String, value: String, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun QuickActionsGrid(peersCount: Int, onNavigate: (Screen) -> Unit) {
+private fun QuickActionsGrid(
+    peersCount: Int,
+    sosAlertsCount: Int,
+    onNavigate: (Screen) -> Unit
+) {
+    val sosSubtitle = if (sosAlertsCount > 0) "$sosAlertsCount active alert${if (sosAlertsCount > 1) "s" else ""}" else "Standby / Normal"
+
     Column {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             QuickActionCard(
@@ -360,7 +371,7 @@ private fun QuickActionsGrid(peersCount: Int, onNavigate: (Screen) -> Unit) {
                 modifier = Modifier.weight(1f),
                 icon = Icons.Outlined.Share,
                 title = "Mesh Network",
-                subtitle = "$peersCount active",
+                subtitle = if (peersCount > 0) "$peersCount active" else "Searching...",
                 iconTint = StatusActive,
                 onClick = { onNavigate(Screen.MESH) }
             )
@@ -371,7 +382,7 @@ private fun QuickActionsGrid(peersCount: Int, onNavigate: (Screen) -> Unit) {
                 modifier = Modifier.weight(1f),
                 icon = Icons.Outlined.Folder,
                 title = "Files",
-                subtitle = "2 active transfers",
+                subtitle = "Offline P2P ready",
                 iconTint = StatusActive,
                 onClick = { onNavigate(Screen.FILES) }
             )
@@ -379,10 +390,11 @@ private fun QuickActionsGrid(peersCount: Int, onNavigate: (Screen) -> Unit) {
                 modifier = Modifier.weight(1f),
                 icon = Icons.Outlined.Emergency,
                 title = "SOS",
-                subtitle = "2 active alerts",
-                iconTint = AlertPink,
-                borderColor = AlertRedBorder,
-                subtitleColor = AlertPink,
+                subtitle = sosSubtitle,
+                badgeText = if (sosAlertsCount > 0) "$sosAlertsCount" else null,
+                iconTint = if (sosAlertsCount > 0) AlertPink else StatusActive,
+                borderColor = if (sosAlertsCount > 0) AlertRedBorder else Color.Transparent,
+                subtitleColor = if (sosAlertsCount > 0) AlertPink else TextSecondary,
                 onClick = { onNavigate(Screen.SOS_CENTER) }
             )
         }

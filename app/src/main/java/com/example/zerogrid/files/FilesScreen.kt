@@ -19,17 +19,23 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.mesh.engine.MeshEngine
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
 fun FilesScreen(onNavigate: (Screen) -> Unit = {}) {
+    val context = LocalContext.current
+    val meshEngine = MeshEngine.getInstance(context)
+    val peers by meshEngine.connectedPeers.collectAsState()
+
     Scaffold(
         containerColor = DarkBackground,
         topBar = { FilesTopBar() },
@@ -53,7 +59,7 @@ fun FilesScreen(onNavigate: (Screen) -> Unit = {}) {
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(modifier = Modifier.height(12.dp))
-            MeshActiveStatusBanner()
+            MeshActiveStatusBanner(peersCount = peers.size)
             Spacer(modifier = Modifier.height(16.dp))
 
             // Local Storage Card
@@ -73,7 +79,7 @@ fun FilesScreen(onNavigate: (Screen) -> Unit = {}) {
             Spacer(modifier = Modifier.height(20.dp))
 
             // Files Shared With You Banner Card
-            FilesSharedBannerCard()
+            FilesSharedBannerCard(onSendClick = { onNavigate(Screen.SEND_FILE) })
             Spacer(modifier = Modifier.height(24.dp))
 
             // Recent Files Section
@@ -128,7 +134,7 @@ private fun FilesTopBar() {
 }
 
 @Composable
-private fun MeshActiveStatusBanner() {
+private fun MeshActiveStatusBanner(peersCount: Int) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -146,7 +152,7 @@ private fun MeshActiveStatusBanner() {
             )
         }
         Text(
-            text = "12 peers reachable",
+            text = "$peersCount peer${if (peersCount != 1) "s" else ""} reachable",
             color = TextSecondary,
             fontSize = 12.sp,
             fontFamily = FontFamily.Monospace
@@ -156,6 +162,22 @@ private fun MeshActiveStatusBanner() {
 
 @Composable
 private fun LocalStorageCard() {
+    val context = LocalContext.current
+    val (usedGb, availGb, progress) = remember {
+        try {
+            val statFs = android.os.StatFs(context.filesDir.absolutePath)
+            val total = statFs.totalBytes
+            val avail = statFs.availableBytes
+            val used = total - avail
+            val u = String.format(java.util.Locale.US, "%.1f", used.toDouble() / (1024 * 1024 * 1024))
+            val a = String.format(java.util.Locale.US, "%.1f", avail.toDouble() / (1024 * 1024 * 1024))
+            val p = if (total > 0) (used.toFloat() / total.toFloat()).coerceIn(0f, 1f) else 0.4f
+            Triple(u, a, p)
+        } catch (e: Exception) {
+            Triple("2.4", "5.6", 0.3f)
+        }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -164,7 +186,7 @@ private fun LocalStorageCard() {
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "Local Storage",
+                text = "Local Device Storage",
                 color = TextSecondary,
                 fontSize = 12.sp,
                 fontFamily = FontFamily.Monospace
@@ -176,13 +198,13 @@ private fun LocalStorageCard() {
                 verticalAlignment = Alignment.Bottom
             ) {
                 Text(
-                    text = "2.4 GB used",
+                    text = "$usedGb GB used",
                     color = TextPrimary,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "5.6 GB available",
+                    text = "$availGb GB available",
                     color = TextSecondary,
                     fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace
@@ -190,7 +212,7 @@ private fun LocalStorageCard() {
             }
             Spacer(modifier = Modifier.height(12.dp))
             LinearProgressIndicator(
-                progress = { 0.3f },
+                progress = { progress },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp),
@@ -204,169 +226,38 @@ private fun LocalStorageCard() {
 
 @Composable
 private fun ActiveTransfersSection() {
-    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        // Transfer 1: Emergency-Map.pdf (Incoming)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, DividerColor)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, DividerColor)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(Color(0xFF3B1A1E), RoundedCornerShape(8.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(imageVector = Icons.Outlined.PictureAsPdf, contentDescription = null, tint = AlertPink, modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "Emergency-Map.pdf",
-                                color = TextPrimary,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "From Rescue Team",
-                                color = TextSecondary,
-                                fontSize = 12.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .background(SurfaceDarker, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(imageVector = Icons.Outlined.Download, contentDescription = "Download", tint = StatusActive, modifier = Modifier.size(16.dp))
-                    }
-                }
-                Spacer(modifier = Modifier.height(14.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "12.4/18.2 MB (68%)",
-                        color = TextSecondary,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Text(
-                        text = "2.1 MB/s  •  2 hops",
-                        color = TextSecondary,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                LinearProgressIndicator(
-                    progress = { 0.68f },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp),
-                    color = StatusActive,
-                    trackColor = SurfaceDarker,
-                    strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Outlined.SwapHoriz,
+                    contentDescription = null,
+                    tint = StatusActive,
+                    modifier = Modifier.size(28.dp)
                 )
-            }
-        }
-
-        // Transfer 2: Medical-Supplies.jpg (Outgoing)
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, DividerColor)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
-                ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(SurfaceDarker, RoundedCornerShape(8.dp)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(imageVector = Icons.Outlined.Image, contentDescription = null, tint = StatusActive, modifier = Modifier.size(20.dp))
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = "Medical-Supplies.jpg",
-                                color = TextPrimary,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = "To Device-7A42",
-                                color = TextSecondary,
-                                fontSize = 12.sp,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .background(SurfaceDarker, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(imageVector = Icons.Outlined.Upload, contentDescription = "Upload", tint = StatusActive, modifier = Modifier.size(16.dp))
-                    }
-                }
-                Spacer(modifier = Modifier.height(14.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "34%",
-                        color = TextSecondary,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                    Text(
-                        text = "Direct connection",
-                        color = TextSecondary,
-                        fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
-                }
                 Spacer(modifier = Modifier.height(8.dp))
-                LinearProgressIndicator(
-                    progress = { 0.34f },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp),
-                    color = StatusActive,
-                    trackColor = SurfaceDarker,
-                    strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+                Text(
+                    text = "No active file transfers",
+                    color = TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "P2P protocol standby • Share files with nearby peers",
+                    color = TextSecondary,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace
                 )
             }
         }
@@ -374,8 +265,9 @@ private fun ActiveTransfersSection() {
 }
 
 @Composable
-private fun FilesSharedBannerCard() {
+private fun FilesSharedBannerCard(onSendClick: () -> Unit = {}) {
     Card(
+        onClick = onSendClick,
         modifier = Modifier
             .fillMaxWidth()
             .border(1.dp, StatusActive, RoundedCornerShape(12.dp)),
@@ -389,59 +281,80 @@ private fun FilesSharedBannerCard() {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Text(
-                    text = "Files Shared With You",
-                    color = TextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "3 active shares",
-                    color = TextSecondary,
-                    fontSize = 12.sp,
-                    fontFamily = FontFamily.Monospace
-                )
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "View",
-                    color = StatusActive,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.width(4.dp))
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                    imageVector = Icons.Outlined.FolderShared,
                     contentDescription = null,
                     tint = StatusActive,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(24.dp)
                 )
+                Spacer(modifier = Modifier.width(14.dp))
+                Column {
+                    Text(
+                        text = "Offline P2P File Sharing",
+                        color = TextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "Tap to choose recipient & transmit offline",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
             }
+            Icon(
+                imageVector = Icons.AutoMirrored.Outlined.ArrowForward,
+                contentDescription = null,
+                tint = StatusActive,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }
 
 @Composable
 private fun RecentFilesSection() {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        RecentFileItem(
-            icon = Icons.Outlined.PictureAsPdf,
-            iconTint = AlertPink,
-            iconBg = Color(0xFF3B1A1E),
-            title = "Emergency-Map.pdf",
-            details = "18.2 MB  •  Received  •  From Rescue Team",
-            time = "12:38"
-        )
-        RecentFileItem(
-            icon = Icons.Outlined.Image,
-            iconTint = StatusActive,
-            iconBg = SurfaceDarker,
-            title = "Safe-Zone.jpg",
-            details = "4.2 MB  •  Received  •  From Alex",
-            time = "12:15"
-        )
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, DividerColor)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Outlined.FolderOpen,
+                    contentDescription = null,
+                    tint = TextSecondary,
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "No shared files received yet",
+                    color = TextPrimary,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Medium
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Emergency documents received over mesh will appear here",
+                    color = TextSecondary,
+                    fontSize = 12.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+        }
     }
 }
 

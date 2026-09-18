@@ -22,13 +22,33 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import com.example.zerogrid.mesh.engine.MeshEngine
+import com.example.zerogrid.mesh.engine.MeshNode
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
 fun SendFileScreen(onNavigate: (Screen) -> Unit = {}) {
+    val context = LocalContext.current
+    val meshEngine = MeshEngine.getInstance(context)
+    val peers by meshEngine.connectedPeers.collectAsState()
+
     var selectedPermission by remember { mutableStateOf("Downloadable") }
+    var selectedFileUri by remember { mutableStateOf<Uri?>(null) }
+    var selectedFileName by remember { mutableStateOf("") }
+    var selectedRecipientId by remember { mutableStateOf("") }
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        selectedFileUri = uri
+        selectedFileName = uri?.lastPathSegment?.substringAfterLast('/') ?: "Selected Document"
+    }
 
     Scaffold(
         containerColor = DarkBackground,
@@ -55,9 +75,10 @@ fun SendFileScreen(onNavigate: (Screen) -> Unit = {}) {
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(10.dp))
-            ChooseFileCard()
-            Spacer(modifier = Modifier.height(12.dp))
-            RecentFilesSelectionList()
+            ChooseFileCard(
+                selectedFileName = selectedFileName,
+                onBrowseClick = { filePickerLauncher.launch("*/*") }
+            )
             Spacer(modifier = Modifier.height(20.dp))
 
             // Send To Section
@@ -69,7 +90,11 @@ fun SendFileScreen(onNavigate: (Screen) -> Unit = {}) {
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(10.dp))
-            RecipientSelectionList()
+            RecipientSelectionList(
+                peers = peers,
+                selectedRecipientId = selectedRecipientId,
+                onSelectRecipient = { selectedRecipientId = it }
+            )
             Spacer(modifier = Modifier.height(20.dp))
 
             // File Permission Section
@@ -85,12 +110,21 @@ fun SendFileScreen(onNavigate: (Screen) -> Unit = {}) {
             Spacer(modifier = Modifier.height(20.dp))
 
             // Transfer Summary Card
-            TransferSummaryCard()
+            TransferSummaryCard(
+                fileName = if (selectedFileName.isNotEmpty()) selectedFileName else "No file chosen",
+                recipient = if (selectedRecipientId.isNotEmpty()) {
+                    peers.find { it.nodeId == selectedRecipientId }?.alias ?: "Node-${selectedRecipientId.takeLast(4)}"
+                } else if (peers.isNotEmpty()) {
+                    "Broadcast to all peers"
+                } else {
+                    "No peer selected"
+                }
+            )
             Spacer(modifier = Modifier.height(24.dp))
 
             // Send File Button
             Button(
-                onClick = { },
+                onClick = { onNavigate(Screen.FILE_TRANSFER) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
@@ -98,7 +132,7 @@ fun SendFileScreen(onNavigate: (Screen) -> Unit = {}) {
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Text(
-                    text = "Send File",
+                    text = "Transmit File Over Mesh",
                     color = Color.Black,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
@@ -223,13 +257,15 @@ private fun StepIndicatorItem(step: String, label: String, active: Boolean) {
 }
 
 @Composable
-private fun ChooseFileCard() {
+private fun ChooseFileCard(
+    selectedFileName: String,
+    onBrowseClick: () -> Unit
+) {
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(1.dp, DividerColor, RoundedCornerShape(16.dp)),
+        modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
-        shape = RoundedCornerShape(16.dp)
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, if (selectedFileName.isNotEmpty()) StatusActive else DividerColor)
     ) {
         Column(
             modifier = Modifier
@@ -243,25 +279,30 @@ private fun ChooseFileCard() {
                     .background(SurfaceDarker, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(imageVector = Icons.Outlined.FileUpload, contentDescription = null, tint = StatusActive, modifier = Modifier.size(28.dp))
+                Icon(
+                    imageVector = if (selectedFileName.isNotEmpty()) Icons.Outlined.CheckCircle else Icons.Outlined.FileUpload,
+                    contentDescription = null,
+                    tint = StatusActive,
+                    modifier = Modifier.size(28.dp)
+                )
             }
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Choose a file",
+                text = if (selectedFileName.isNotEmpty()) selectedFileName else "Choose a file",
                 color = TextPrimary,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Select a document, image, video, or other file from this device.",
+                text = if (selectedFileName.isNotEmpty()) "File selected from device storage ready to transmit." else "Select a document, image, or file from this device.",
                 color = TextSecondary,
                 fontSize = 13.sp,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
             Spacer(modifier = Modifier.height(20.dp))
             Button(
-                onClick = { },
+                onClick = onBrowseClick,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
@@ -270,7 +311,7 @@ private fun ChooseFileCard() {
                 border = BorderStroke(1.dp, DividerColor)
             ) {
                 Text(
-                    text = "Browse Files",
+                    text = if (selectedFileName.isNotEmpty()) "Change File" else "Browse Files",
                     color = StatusActive,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
@@ -282,131 +323,77 @@ private fun ChooseFileCard() {
 }
 
 @Composable
-private fun RecentFilesSelectionList() {
+private fun RecipientSelectionList(
+    peers: List<MeshNode>,
+    selectedRecipientId: String,
+    onSelectRecipient: (String) -> Unit
+) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // Selected file item
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, StatusActive, RoundedCornerShape(12.dp)),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically
+        if (peers.isEmpty()) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = CardBackground),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, DividerColor)
             ) {
-                Icon(imageVector = Icons.Outlined.PictureAsPdf, contentDescription = null, tint = AlertPink, modifier = Modifier.size(24.dp))
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(text = "Emergency-Map.pdf", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(text = "18.2 MB", color = TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                }
-                Icon(imageVector = Icons.Outlined.CheckCircle, contentDescription = null, tint = StatusActive, modifier = Modifier.size(20.dp))
-            }
-        }
-
-        // Unselected file item
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, DividerColor)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(imageVector = Icons.Outlined.Image, contentDescription = null, tint = StatusActive, modifier = Modifier.size(24.dp))
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(text = "Safe-Zone.jpg", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(text = "4.8 MB", color = TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun RecipientSelectionList() {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        // Selected Recipient
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, StatusActive, RoundedCornerShape(12.dp)),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .background(StatusActive, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(text = "R", color = Color.Black, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(text = "Rescue Team", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(text = "2 hops away  •  Good connection", color = StatusActive, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                        }
+                Box(modifier = Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(imageVector = Icons.Outlined.Devices, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(28.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(text = "No mesh peers discovered", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(text = "Bring another ZeroGrid device nearby to transfer files offline.", color = TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                     }
-                    Icon(imageVector = Icons.Outlined.CheckCircle, contentDescription = null, tint = StatusActive, modifier = Modifier.size(20.dp))
                 }
-                Spacer(modifier = Modifier.height(10.dp))
-                Box(
+            }
+        } else {
+            peers.forEach { peer ->
+                val isSelected = peer.nodeId == selectedRecipientId
+                Card(
+                    onClick = { onSelectRecipient(peer.nodeId) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(SurfaceDarker, RoundedCornerShape(6.dp))
-                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                        .border(1.dp, if (isSelected) StatusActive else DividerColor, RoundedCornerShape(12.dp)),
+                    colors = CardDefaults.cardColors(containerColor = CardBackground),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(text = "Via Device-7A42", color = TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-                }
-            }
-        }
-
-        // Unselected Recipient
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, DividerColor)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .background(SurfaceDarker, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(text = "A", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                }
-                Spacer(modifier = Modifier.width(12.dp))
-                Column {
-                    Text(text = "Alex", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(text = "Direct connection", color = TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .background(if (isSelected) StatusActive else SurfaceDarker, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = peer.alias.take(1).uppercase(),
+                                    color = if (isSelected) Color.Black else TextPrimary,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(text = peer.alias, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = "${if (peer.hopDistance == 1) "Direct Link" else "${peer.hopDistance} hops"}  •  ${peer.transportType}",
+                                    color = if (isSelected) StatusActive else TextSecondary,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            }
+                        }
+                        if (isSelected) {
+                            Icon(imageVector = Icons.Outlined.CheckCircle, contentDescription = null, tint = StatusActive, modifier = Modifier.size(20.dp))
+                        }
+                    }
                 }
             }
         }
@@ -455,7 +442,10 @@ private fun FilePermissionRow(selected: String, onSelected: (String) -> Unit) {
 }
 
 @Composable
-private fun TransferSummaryCard() {
+private fun TransferSummaryCard(
+    fileName: String = "No file chosen",
+    recipient: String = "No peer selected"
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -470,15 +460,13 @@ private fun TransferSummaryCard() {
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(12.dp))
-            SummaryRow(label = "File:", value = "Emergency-Map.pdf")
+            SummaryRow(label = "File:", value = fileName)
             Spacer(modifier = Modifier.height(8.dp))
-            SummaryRow(label = "Size:", value = "18.2 MB")
+            SummaryRow(label = "Recipient:", value = recipient)
             Spacer(modifier = Modifier.height(8.dp))
-            SummaryRow(label = "Recipient:", value = "Rescue Team")
+            SummaryRow(label = "Protocol:", value = "Mesh Multi-Hop P2P")
             Spacer(modifier = Modifier.height(8.dp))
-            SummaryRow(label = "Route:", value = "Up to 2 hops")
-            Spacer(modifier = Modifier.height(8.dp))
-            SummaryRow(label = "Permission:", value = "Downloadable")
+            SummaryRow(label = "Status:", value = if (fileName != "No file chosen") "Ready to Queue" else "Awaiting Selection")
         }
     }
 }

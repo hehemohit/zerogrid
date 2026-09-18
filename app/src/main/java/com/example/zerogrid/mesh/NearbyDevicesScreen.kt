@@ -34,14 +34,28 @@ import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
 
 @Composable
-fun NearbyDevicesScreen(onNavigate: (Screen) -> Unit = {}) {
+fun NearbyDevicesScreen(
+    onNavigate: (Screen) -> Unit = {},
+    onBackClick: () -> Unit = { onNavigate(Screen.HOME) },
+    onOpenPeerDetails: (String) -> Unit = {},
+    onOpenPeerChat: (String) -> Unit = {}
+) {
     var selectedFilter by remember { mutableStateOf("All") }
     val meshEngine = MeshEngine.getInstance(LocalContext.current)
     val peers by meshEngine.connectedPeers.collectAsState()
 
+    val filteredPeers = remember(peers, selectedFilter) {
+        when (selectedFilter) {
+            "Direct" -> peers.filter { it.hopDistance == 1 }
+            "2 Hops" -> peers.filter { it.hopDistance == 2 }
+            "Relay" -> peers.filter { it.hopDistance > 1 }
+            else -> peers
+        }
+    }
+
     Scaffold(
         containerColor = DarkBackground,
-        topBar = { NearbyTopBar() },
+        topBar = { NearbyTopBar(onBackClick = onBackClick) },
         bottomBar = { ZeroGridBottomBar(currentScreen = Screen.MESH, onNavigate = onNavigate) }
     ) { paddingValues ->
         Column(
@@ -54,18 +68,22 @@ fun NearbyDevicesScreen(onNavigate: (Screen) -> Unit = {}) {
             Spacer(modifier = Modifier.height(16.dp))
             MeshDiscoveryCard(peers.size)
             Spacer(modifier = Modifier.height(16.dp))
-            RadarGraphicCard()
+            RadarGraphicCard(peersCount = peers.size)
             Spacer(modifier = Modifier.height(16.dp))
             FilterChipsRow(selected = selectedFilter, onSelected = { selectedFilter = it })
             Spacer(modifier = Modifier.height(16.dp))
-            DevicesListSection(peers = peers)
+            DevicesListSection(
+                peers = filteredPeers,
+                onOpenPeerDetails = onOpenPeerDetails,
+                onOpenPeerChat = onOpenPeerChat
+            )
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
 }
 
 @Composable
-private fun NearbyTopBar() {
+private fun NearbyTopBar(onBackClick: () -> Unit = {}) {
     Column {
         Row(
             modifier = Modifier
@@ -75,13 +93,15 @@ private fun NearbyTopBar() {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Back",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(16.dp))
+                IconButton(onClick = onBackClick) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = StatusActive,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Nearby Devices",
                     color = StatusActive,
@@ -156,7 +176,7 @@ private fun MeshDiscoveryCard(devicesFound: Int) {
 }
 
 @Composable
-private fun RadarGraphicCard() {
+private fun RadarGraphicCard(peersCount: Int) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -167,20 +187,33 @@ private fun RadarGraphicCard() {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val center = Offset(size.width / 2, size.height / 2)
-                drawCircle(color = SurfaceDarker, radius = 50.dp.toPx(), center = center)
-                drawCircle(color = DividerColor, radius = 75.dp.toPx(), center = center, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1f))
+                drawCircle(color = SurfaceDarker, radius = 40.dp.toPx(), center = center)
+                drawCircle(color = DividerColor, radius = 65.dp.toPx(), center = center, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1f))
+                drawCircle(color = DividerColor.copy(alpha = 0.5f), radius = 90.dp.toPx(), center = center, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1f))
+
+                // Draw blips for connected peers
+                if (peersCount > 0) {
+                    val radiusPx = 65.dp.toPx()
+                    val angleStep = (2 * Math.PI) / peersCount
+                    for (i in 0 until peersCount) {
+                        val angle = i * angleStep
+                        val x = center.x + (radiusPx * Math.cos(angle)).toFloat()
+                        val y = center.y + (radiusPx * Math.sin(angle)).toFloat()
+                        drawCircle(color = StatusActive, radius = 5.dp.toPx(), center = Offset(x, y))
+                    }
+                }
             }
             Box(
                 modifier = Modifier
                     .size(48.dp)
                     .background(SurfaceDarker, CircleShape)
-                    .border(1.dp, StatusActive, CircleShape),
+                    .border(1.dp, if (peersCount > 0) StatusActive else TextSecondary, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.PhoneAndroid,
                     contentDescription = "Device",
-                    tint = StatusActive,
+                    tint = if (peersCount > 0) StatusActive else TextSecondary,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -220,22 +253,42 @@ private fun FilterChipsRow(selected: String, onSelected: (String) -> Unit) {
 }
 
 @Composable
-private fun DevicesListSection(peers: List<MeshNode>) {
+private fun DevicesListSection(
+    peers: List<MeshNode>,
+    onOpenPeerDetails: (String) -> Unit,
+    onOpenPeerChat: (String) -> Unit
+) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (peers.isEmpty()) {
-            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                Text(text = "No devices nearby. Move closer to another node.", color = TextSecondary, fontSize = 14.sp)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Outlined.Devices,
+                        contentDescription = null,
+                        tint = TextSecondary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(text = "No mesh devices discovered yet", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(text = "Bring another ZeroGrid device closer or ensure radio is enabled.", color = TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                }
             }
         } else {
             peers.forEach { peer ->
                 DeviceCard(
                     icon = if (peer.transportType == MeshNode.TRANSPORT_BLE) Icons.Outlined.Bluetooth else Icons.Outlined.Wifi,
                     name = peer.alias,
-                    status = if (peer.hopDistance == 1) "Direct • ${peer.transportType}" else "Hop count: ${peer.hopDistance}",
-                    subStatus = "Last seen: Just now",
+                    status = if (peer.hopDistance == 1) "Direct • ${peer.transportType}" else "${peer.hopDistance} hops via Mesh",
+                    subStatus = "Node ID: ${peer.nodeId.takeLast(6)}",
                     signalBars = if (peer.rssi > -60) 4 else if (peer.rssi > -80) 2 else 1,
-                    actionText = "View",
-                    isActionOutlined = true
+                    onViewClick = { onOpenPeerDetails(peer.nodeId) },
+                    onChatClick = { onOpenPeerChat(peer.nodeId) }
                 )
             }
         }
@@ -249,8 +302,8 @@ private fun DeviceCard(
     status: String,
     subStatus: String? = null,
     signalBars: Int? = null,
-    actionText: String,
-    isActionOutlined: Boolean
+    onViewClick: () -> Unit,
+    onChatClick: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -306,24 +359,24 @@ private fun DeviceCard(
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            if (isActionOutlined) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
-                    onClick = { },
+                    onClick = onViewClick,
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
                     border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Text(text = actionText, fontSize = 13.sp)
+                    Text(text = "View", fontSize = 13.sp)
                 }
-            } else {
+
                 Button(
-                    onClick = { },
+                    onClick = onChatClick,
                     shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = TextPrimary, contentColor = Color.Black),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+                    colors = ButtonDefaults.buttonColors(containerColor = StatusActive, contentColor = Color.Black),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Text(text = actionText, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "Chat", fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

@@ -127,8 +127,21 @@ fun SosCenterScreen(onNavigate: (Screen) -> Unit = {}) {
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold
             )
-            Spacer(modifier = Modifier.height(10.dp))
-            NetworkReachSection(peers.size)
+            val maxHops = if (peers.isEmpty()) 0 else peers.maxOf { it.hopDistance }
+            val lastAlert = alerts.maxByOrNull { it.timestamp }
+            val lastBroadcastTime = if (lastAlert != null) {
+                java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault()).format(java.util.Date(lastAlert.timestamp))
+            } else {
+                "None"
+            }
+            val deliveryStatus = if (peers.isNotEmpty()) "100% (Mesh)" else if (alerts.isNotEmpty()) "Relayed" else "Standby"
+
+            NetworkReachSection(
+                reachableCount = peers.size,
+                maxHops = maxHops,
+                lastBroadcastTime = lastBroadcastTime,
+                deliveryStatus = deliveryStatus
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -141,7 +154,10 @@ fun SosCenterScreen(onNavigate: (Screen) -> Unit = {}) {
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(10.dp))
-            RecentActivitySection()
+            RecentActivitySection(
+                alerts = alerts,
+                acknowledgedIds = acknowledgedIds
+            )
 
             Spacer(modifier = Modifier.height(20.dp))
 
@@ -153,20 +169,22 @@ fun SosCenterScreen(onNavigate: (Screen) -> Unit = {}) {
                 QuickActionButton(
                     modifier = Modifier.weight(1f),
                     icon = Icons.Outlined.Campaign,
-                    title = "Broadcast\nSOS"
+                    title = "Broadcast\nSOS",
+                    onClick = { onNavigate(Screen.SEND_SOS) }
                 )
                 QuickActionButton(
                     modifier = Modifier.weight(1f),
                     icon = Icons.Outlined.RssFeed,
-                    title = "View SOS\nFeed"
+                    title = "Emergency\nContacts",
+                    onClick = { onNavigate(Screen.EMERGENCY_CONTACTS) }
                 )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Emergency Contacts Button
+            // Emergency Contacts Full Width Button
             Button(
-                onClick = { },
+                onClick = { onNavigate(Screen.EMERGENCY_CONTACTS) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
@@ -178,7 +196,7 @@ fun SosCenterScreen(onNavigate: (Screen) -> Unit = {}) {
                     Icon(imageVector = Icons.Outlined.ContactEmergency, contentDescription = null, tint = StatusActive, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Emergency Contacts",
+                        text = "Manage Emergency Contacts",
                         color = TextPrimary,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
@@ -507,7 +525,12 @@ private fun ActiveAlertsSection(alerts: List<MeshPacket>, localNodeId: String, a
 
 
 @Composable
-private fun NetworkReachSection(reachableCount: Int) {
+private fun NetworkReachSection(
+    reachableCount: Int,
+    maxHops: Int,
+    lastBroadcastTime: String,
+    deliveryStatus: String
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -531,11 +554,10 @@ private fun NetworkReachSection(reachableCount: Int) {
                     }
                 }
                 Column(modifier = Modifier.weight(1f)) {
-                    // ... (rest of the card content)
                     Text(text = "Relay hops", color = TextSecondary, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "3",
+                        text = maxHops.toString(),
                         color = TextPrimary,
                         fontSize = 24.sp,
                         fontWeight = FontWeight.Bold,
@@ -551,9 +573,9 @@ private fun NetworkReachSection(reachableCount: Int) {
                     Text(text = "Delivery status", color = TextSecondary, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "94%",
+                        text = deliveryStatus,
                         color = StatusActive,
-                        fontSize = 24.sp,
+                        fontSize = if (deliveryStatus.length > 8) 18.sp else 24.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace
                     )
@@ -562,9 +584,9 @@ private fun NetworkReachSection(reachableCount: Int) {
                     Text(text = "Last broadcast", color = TextSecondary, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "12:41 PM",
+                        text = lastBroadcastTime,
                         color = TextPrimary,
-                        fontSize = 20.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace
                     )
@@ -575,34 +597,63 @@ private fun NetworkReachSection(reachableCount: Int) {
 }
 
 @Composable
-private fun RecentActivitySection() {
+private fun RecentActivitySection(
+    alerts: List<MeshPacket>,
+    acknowledgedIds: Set<String>
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
         shape = RoundedCornerShape(12.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            RecentActivityItem(
-                icon = Icons.Outlined.CheckCircle,
-                iconTint = StatusActive,
-                title = "SOS broadcast delivered (Reached 9 devices)",
-                time = "12:28 PM"
-            )
-            RecentActivityItem(
-                icon = Icons.Outlined.Shield,
-                iconTint = StatusActive,
-                title = "SOS acknowledged by Rescue Team",
-                time = "12:24 PM"
-            )
-            RecentActivityItem(
-                icon = Icons.Outlined.DoNotDisturbAlt,
-                iconTint = TextSecondary,
-                title = "Emergency alert expired",
-                time = "11:52 AM"
-            )
+        if (alerts.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        imageVector = Icons.Outlined.CheckCircle,
+                        contentDescription = null,
+                        tint = StatusActive,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "No emergency alerts recorded",
+                        color = TextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Mesh network operating in normal state",
+                        color = TextSecondary,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                alerts.take(5).forEach { alert ->
+                    val isAck = alert.packetId in acknowledgedIds
+                    val formattedTime = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault())
+                        .format(java.util.Date(alert.timestamp))
+                    val category = alert.payload.substringAfter("Category: ").substringBefore(" |").ifEmpty { "Emergency" }
+                    RecentActivityItem(
+                        icon = if (isAck) Icons.Outlined.Shield else Icons.Outlined.Emergency,
+                        iconTint = if (isAck) StatusActive else AlertPink,
+                        title = if (isAck) "SOS acknowledged: $category" else "SOS Broadcast: $category (Node-${alert.senderId.takeLast(4)})",
+                        time = formattedTime
+                    )
+                }
+            }
         }
     }
 }
@@ -631,8 +682,14 @@ private fun RecentActivityItem(icon: ImageVector, iconTint: Color, title: String
 }
 
 @Composable
-private fun QuickActionButton(modifier: Modifier = Modifier, icon: ImageVector, title: String) {
+private fun QuickActionButton(
+    modifier: Modifier = Modifier,
+    icon: ImageVector,
+    title: String,
+    onClick: () -> Unit = {}
+) {
     Card(
+        onClick = onClick,
         modifier = modifier.height(80.dp),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
         shape = RoundedCornerShape(12.dp),

@@ -23,26 +23,33 @@ class MeshRoutingEngine(
         private const val TAG = "MeshRoutingEngine"
     }
 
-    private val activeTransports = mutableListOf<MeshTransport>()
+    private val activeTransports = java.util.concurrent.CopyOnWriteArrayList<MeshTransport>()
+    private val transportJobs = java.util.concurrent.ConcurrentHashMap<MeshTransport, kotlinx.coroutines.Job>()
 
     private val _incomingPackets = MutableSharedFlow<MeshPacket>(extraBufferCapacity = 128)
     val incomingPackets: SharedFlow<MeshPacket> = _incomingPackets.asSharedFlow()
 
     private val scope = CoroutineScope(Dispatchers.IO)
 
+    @Synchronized
     fun registerTransport(transport: MeshTransport) {
         if (!activeTransports.contains(transport)) {
             activeTransports.add(transport)
-            scope.launch {
+            val job = scope.launch {
                 transport.packetFlow.collect { packet ->
                     processInboundPacket(packet, transport)
                 }
             }
+            transportJobs[transport] = job
+            Log.d(TAG, "Registered transport: ${transport.transportName}")
         }
     }
 
+    @Synchronized
     fun unregisterTransport(transport: MeshTransport) {
         activeTransports.remove(transport)
+        transportJobs.remove(transport)?.cancel()
+        Log.d(TAG, "Unregistered transport: ${transport.transportName}")
     }
 
     fun processInboundPacket(packet: MeshPacket, sourceTransport: MeshTransport? = null) {

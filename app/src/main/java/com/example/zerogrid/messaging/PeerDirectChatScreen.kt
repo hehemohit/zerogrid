@@ -52,18 +52,10 @@ fun PeerDirectChatScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     var messageText by remember { mutableStateOf("") }
-    var selectedTransport by remember { mutableStateOf("Auto") }
-    var showWifiDialog by remember { mutableStateOf(false) }
+    val activeChannelMode by meshEngine.activeChannelMode.collectAsState()
 
     val conversations by meshEngine.conversations.collectAsState()
     val connectedPeers by meshEngine.connectedPeers.collectAsState()
-
-    if (showWifiDialog) {
-        WifiRequiredDialog(
-            onDismiss = { showWifiDialog = false },
-            onEnableClick = { HardwareStateManager.openWifiSettings(context) }
-        )
-    }
 
     // Live conversation — updates from the StateFlow as new messages arrive/are sent
     val messages = conversations[peerId] ?: emptyList()
@@ -74,11 +66,7 @@ fun PeerDirectChatScreen(
         ?: messageStore.getPeerDisplayName(peerId)
     val isOnline = peer != null
     val hopInfo = peer?.let {
-        if (it.isMultiInterface()) {
-            "BLE + Wi-Fi • ${it.getBestSignalRssi()}dBm"
-        } else {
-            "${it.transportType} • ${it.rssi}dBm"
-        }
+        "${it.transportType} • ${it.rssi}dBm"
     } ?: "Offline"
 
     val listState = rememberLazyListState()
@@ -98,32 +86,48 @@ fun PeerDirectChatScreen(
                 displayName = displayName,
                 isOnline = isOnline,
                 hopInfo = hopInfo,
+                activeMode = activeChannelMode,
+                onToggleMode = {
+                    val newMode = if (activeChannelMode == com.example.zerogrid.mesh.engine.MeshChannelMode.BLE) {
+                        com.example.zerogrid.mesh.engine.MeshChannelMode.WIFI_DIRECT
+                    } else {
+                        com.example.zerogrid.mesh.engine.MeshChannelMode.BLE
+                    }
+                    meshEngine.setMeshChannelMode(newMode)
+                },
                 onBackClick = { onNavigate(Screen.MESSAGES) }
             )
         },
         bottomBar = {
             Column {
-                ChatTransportSelectorRow(
-                    selectedTransport = selectedTransport,
-                    onSelectTransport = { transport ->
-                        if (transport == "Wi-Fi Direct" && !HardwareStateManager.isWifiEnabled(context)) {
-                            showWifiDialog = true
-                        }
-                        selectedTransport = transport
-                    }
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(DarkBackground)
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = if (activeChannelMode == com.example.zerogrid.mesh.engine.MeshChannelMode.BLE) Icons.Outlined.Bluetooth else Icons.Outlined.Wifi,
+                        contentDescription = null,
+                        tint = StatusActive,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Active Channel: ${activeChannelMode.displayName}",
+                        color = TextSecondary,
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
                 PeerChatInputBar(
                     messageText = messageText,
                     onValueChange = { messageText = it },
                     onSend = {
                         val text = messageText.trim()
                         if (text.isNotEmpty()) {
-                            val preferred = when (selectedTransport) {
-                                "BLE" -> MeshNode.TRANSPORT_BLE
-                                "Wi-Fi Direct" -> MeshNode.TRANSPORT_WIFI_DIRECT
-                                else -> null
-                            }
-                            meshEngine.sendDirectMessage(peerId, text, preferred)
+                            meshEngine.sendDirectMessage(peerId, text)
                             messageText = ""
                         }
                     },
@@ -227,6 +231,8 @@ private fun PeerChatTopBar(
     displayName: String,
     isOnline: Boolean,
     hopInfo: String,
+    activeMode: com.example.zerogrid.mesh.engine.MeshChannelMode,
+    onToggleMode: () -> Unit,
     onBackClick: () -> Unit
 ) {
     Column {
@@ -252,7 +258,7 @@ private fun PeerChatTopBar(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = displayName.first().uppercaseChar().toString(),
+                    text = displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
                     color = StatusActive,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
@@ -283,18 +289,27 @@ private fun PeerChatTopBar(
                     fontFamily = FontFamily.Monospace
                 )
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
+
+            // Clickable Channel Mode Switcher Pill
+            Row(
+                modifier = Modifier
+                    .background(SurfaceDarker, RoundedCornerShape(12.dp))
+                    .border(1.dp, StatusActive.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                    .clickable { onToggleMode() }
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
                 Icon(
-                    imageVector = Icons.Outlined.Shield,
-                    contentDescription = "Encrypted",
+                    imageVector = if (activeMode == com.example.zerogrid.mesh.engine.MeshChannelMode.BLE) Icons.Outlined.Bluetooth else Icons.Outlined.Wifi,
+                    contentDescription = "Switch Channel",
                     tint = StatusActive,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(13.dp)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
                 Text(
-                    text = "E2E",
+                    text = activeMode.id,
                     color = StatusActive,
-                    fontSize = 10.sp,
+                    fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold
                 )
@@ -595,66 +610,6 @@ private fun PeerChatInputBar(
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace
             )
-        }
-    }
-}
-
-@Composable
-private fun ChatTransportSelectorRow(
-    selectedTransport: String,
-    onSelectTransport: (String) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(DarkBackground)
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Text(
-            text = "VIA:",
-            color = TextSecondary,
-            fontSize = 10.sp,
-            fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Bold
-        )
-
-        val options = listOf(
-            Triple("Auto", "Auto (Optimal)", Icons.Outlined.AutoMode),
-            Triple("BLE", "BLE Only", Icons.Outlined.Bluetooth),
-            Triple("Wi-Fi Direct", "Wi-Fi Direct", Icons.Outlined.Wifi)
-        )
-
-        options.forEach { (id, label, icon) ->
-            val isSelected = selectedTransport == id
-            val chipBg = if (isSelected) StatusActive.copy(alpha = 0.15f) else CardBackground
-            val chipBorder = if (isSelected) StatusActive else Color.Transparent
-            val contentColor = if (isSelected) StatusActive else TextSecondary
-
-            Row(
-                modifier = Modifier
-                    .background(chipBg, RoundedCornerShape(12.dp))
-                    .border(1.dp, chipBorder, RoundedCornerShape(12.dp))
-                    .clickable { onSelectTransport(id) }
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = label,
-                    tint = contentColor,
-                    modifier = Modifier.size(12.dp)
-                )
-                Text(
-                    text = id,
-                    color = contentColor,
-                    fontSize = 11.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-                )
-            }
         }
     }
 }

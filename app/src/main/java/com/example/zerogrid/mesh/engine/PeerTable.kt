@@ -9,6 +9,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 class PeerTable(var localNodeId: String? = null) {
 
+    private val lock = Any()
     private val peers = ConcurrentHashMap<String, MeshNode>()
 
     /**
@@ -16,7 +17,7 @@ class PeerTable(var localNodeId: String? = null) {
      * physical interface (e.g. BLE vs Wi-Fi), merges the profiles into a single logical
      * peer and automatically selects whichever transport currently offers the stronger RSSI signal.
      */
-    fun updateOrAddPeer(node: MeshNode) {
+    fun updateOrAddPeer(node: MeshNode) = synchronized(lock) {
         val myId = localNodeId
         if (myId != null) {
             val mySuffix = myId.removePrefix("NODE-")
@@ -94,7 +95,7 @@ class PeerTable(var localNodeId: String? = null) {
     /**
      * Merges a temporary MAC-addressed peer entry into its canonical logical Node ID.
      */
-    fun mergePeer(fromNodeId: String, toNodeId: String) {
+    fun mergePeer(fromNodeId: String, toNodeId: String) = synchronized(lock) {
         if (fromNodeId.equals(toNodeId, ignoreCase = true)) return
         val old = peers.remove(fromNodeId) ?: return
         val target = peers[toNodeId]
@@ -109,15 +110,15 @@ class PeerTable(var localNodeId: String? = null) {
         }
     }
 
-    fun removePeer(nodeId: String) {
+    fun removePeer(nodeId: String) = synchronized(lock) {
         peers.remove(nodeId)
     }
 
-    fun getPeer(nodeId: String): MeshNode? {
+    fun getPeer(nodeId: String): MeshNode? = synchronized(lock) {
         return peers[nodeId]
     }
 
-    fun getAllPeers(): List<MeshNode> {
+    fun getAllPeers(): List<MeshNode> = synchronized(lock) {
         val myId = localNodeId
         return peers.values
             .filter { peer ->
@@ -127,10 +128,11 @@ class PeerTable(var localNodeId: String? = null) {
                     !peer.alias.equals(android.os.Build.MODEL, ignoreCase = true)
                 } else true
             }
+            .map { it.copy(availableTransports = java.util.concurrent.ConcurrentHashMap.newKeySet<String>().apply { addAll(it.availableTransports) }) }
             .sortedByDescending { it.lastSeenTimestamp }
     }
 
-    fun getDirectNeighbors(): List<MeshNode> {
+    fun getDirectNeighbors(): List<MeshNode> = synchronized(lock) {
         val myId = localNodeId
         return peers.values
             .filter { peer ->
@@ -141,15 +143,16 @@ class PeerTable(var localNodeId: String? = null) {
                 } else true
                 peer.isDirectNeighbor && isNotSelf
             }
+            .map { it.copy(availableTransports = java.util.concurrent.ConcurrentHashMap.newKeySet<String>().apply { addAll(it.availableTransports) }) }
             .sortedByDescending { it.rssi }
     }
 
-    fun pruneStalePeers(staleThresholdMs: Long = 60_000) {
+    fun pruneStalePeers(staleThresholdMs: Long = 60_000) = synchronized(lock) {
         val now = System.currentTimeMillis()
         peers.entries.removeIf { entry -> (now - entry.value.lastSeenTimestamp) > staleThresholdMs }
     }
 
-    fun clear() {
+    fun clear() = synchronized(lock) {
         peers.clear()
     }
 }

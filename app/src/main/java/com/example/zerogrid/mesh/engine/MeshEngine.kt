@@ -71,8 +71,14 @@ class MeshEngine private constructor(private val context: Context) {
     private val routingEngine = MeshRoutingEngine(localNodeId)
     private val messageStore = MessageStore.getInstance(context)
 
+    // Synchronization lock protecting live state updates across transport/callback threads
+    private val stateLock = Any()
+
     private val _displayName = MutableStateFlow(getOrGenerateDisplayName(context, localNodeId))
     val displayName: StateFlow<String> = _displayName.asStateFlow()
+
+    private val _activeChannelMode = MutableStateFlow(MeshChannelMode.getSavedMode(context))
+    val activeChannelMode: StateFlow<MeshChannelMode> = _activeChannelMode.asStateFlow()
 
     private val bleDriver: BleMeshDriver = BleMeshDriver(context, localNodeId, _displayName.value)
     private val wifiDirectDriver: WifiDirectMeshDriver = WifiDirectMeshDriver(context, localNodeId, _displayName.value)
@@ -126,13 +132,13 @@ class MeshEngine private constructor(private val context: Context) {
                     loaded[peerId] = messageStore.getConversation(peerId)
                 }
             }
-            _conversations.value = loaded
+            synchronized(stateLock) {
+                _conversations.value = loaded
+            }
             Log.d(TAG, "Loaded ${loaded.size} conversations from MessageStore")
         }
 
         transports.forEach { transport ->
-            routingEngine.registerTransport(transport)
-
             scope.launch {
                 transport.peerDiscoveryFlow.collect { peer ->
                     val localSuffix = localNodeId.removePrefix("NODE-")
@@ -142,8 +148,11 @@ class MeshEngine private constructor(private val context: Context) {
                         peer.alias.equals(_displayName.value, ignoreCase = true)) {
                         return@collect // Filter out own device
                     }
-                    peerTable.updateOrAddPeer(peer)
-                    _connectedPeers.value = peerTable.getAllPeers()
+                    // Only register peer if it matches our active channel mode
+                    if (peer.transportType.equals(_activeChannelMode.value.transportName, ignoreCase = true)) {
+                        peerTable.updateOrAddPeer(peer)
+                        _connectedPeers.value = peerTable.getAllPeers()
+                    }
                 }
             }
         }
@@ -241,18 +250,53 @@ class MeshEngine private constructor(private val context: Context) {
     fun getBleRunning(): Boolean = bleDriver.isRunning
     fun getWifiDirectRunning(): Boolean = wifiDirectDriver.isRunning
 
+    fun setMeshChannelMode(mode: MeshChannelMode) {
+        if (_activeChannelMode.value == mode) return
+        Log.d(TAG, "Switching mesh channel mode to $mode")
+        _activeChannelMode.value = mode
+        MeshChannelMode.saveMode(context, mode)
+
+        if (_isMeshActive.value) {
+            if (mode == MeshChannelMode.BLE) {
+                wifiDirectDriver.stopDiscovery()
+                routingEngine.unregisterTransport(wifiDirectDriver)
+                routingEngine.registerTransport(bleDriver)
+                bleDriver.startDiscovery()
+            } else {
+                bleDriver.stopDiscovery()
+                routingEngine.unregisterTransport(bleDriver)
+                routingEngine.registerTransport(wifiDirectDriver)
+                wifiDirectDriver.startDiscovery()
+            }
+            // Retain only peers matching the active transport
+            val activeName = mode.transportName
+            _connectedPeers.value = peerTable.getAllPeers().filter { it.transportType == activeName }
+        }
+    }
+
     fun startMesh() {
-        Log.d(TAG, "Starting ZeroGrid Mesh Engine (Node ID: $localNodeId, Name: ${_displayName.value})")
-        transports.forEach { it.startDiscovery() }
+        val mode = _activeChannelMode.value
+        Log.d(TAG, "Starting ZeroGrid Mesh Engine in $mode mode (Node ID: $localNodeId, Name: ${_displayName.value})")
+        if (mode == MeshChannelMode.BLE) {
+            wifiDirectDriver.stopDiscovery()
+            routingEngine.unregisterTransport(wifiDirectDriver)
+            routingEngine.registerTransport(bleDriver)
+            bleDriver.startDiscovery()
+        } else {
+            bleDriver.stopDiscovery()
+            routingEngine.unregisterTransport(bleDriver)
+            routingEngine.registerTransport(wifiDirectDriver)
+            wifiDirectDriver.startDiscovery()
+        }
         _isMeshActive.value = true
     }
 
     fun stopMesh() {
         Log.d(TAG, "Stopping ZeroGrid Mesh Engine")
-        transports.forEach {
-            it.stopDiscovery()
-            routingEngine.unregisterTransport(it)
-        }
+        bleDriver.stopDiscovery()
+        wifiDirectDriver.stopDiscovery()
+        routingEngine.unregisterTransport(bleDriver)
+        routingEngine.unregisterTransport(wifiDirectDriver)
         _isMeshActive.value = false
     }
 
@@ -260,16 +304,17 @@ class MeshEngine private constructor(private val context: Context) {
     fun isPeerOnline(peerId: String): Boolean {
         val peer = peerTable.getPeer(peerId)
         val isFreshInTable = peer != null && (System.currentTimeMillis() - peer.lastSeenTimestamp <= 90_000L)
-        val hasActiveRoute = com.zerogrid.mesh.app.service.MeshPeerResolver.getInstance().getBestRouteForDevice(peerId) != null
-        val isBleReachable = bleDriver.isPeerReachable(peerId)
-        val isWifiReachable = wifiDirectDriver.isPeerReachable(peerId)
-        return isFreshInTable || hasActiveRoute || isBleReachable || isWifiReachable
+        val mode = _activeChannelMode.value
+        return if (mode == MeshChannelMode.BLE) {
+            isFreshInTable && (bleDriver.isPeerReachable(peerId) || peer?.transportType == MeshNode.TRANSPORT_BLE)
+        } else {
+            isFreshInTable && (wifiDirectDriver.isPeerReachable(peerId) || peer?.transportType == MeshNode.TRANSPORT_WIFI_DIRECT)
+        }
     }
 
     /**
      * Send a direct message to a peer.
-     * Always attempts immediate delivery over the optimal active interface (BLE or Wi-Fi).
-     * If sending succeeds or the peer is reachable, marks as SENT; only if unreachable is it paused in pipeline.
+     * Transmits strictly over the active channel mode (BLE or Wi-Fi Direct).
      */
     fun sendDirectMessage(recipientId: String, text: String, preferredTransport: String? = null): MeshPacket {
         val packet = MeshPacket(
@@ -279,8 +324,8 @@ class MeshEngine private constructor(private val context: Context) {
             payload = text,
         )
 
-        // Attempt transmission over active interfaces (or targeted transport if specified)
-        val sent = routingEngine.sendOutboundPacket(packet, preferredTransport)
+        val transportToUse = preferredTransport ?: _activeChannelMode.value.transportName
+        val sent = routingEngine.sendOutboundPacket(packet, transportToUse)
         val isOnline = sent || isPeerOnline(recipientId)
         val status = if (sent) MessageStatus.SENT else (if (isOnline) MessageStatus.SENT else MessageStatus.PAUSED)
 
@@ -316,7 +361,7 @@ class MeshEngine private constructor(private val context: Context) {
             payload = msg.text,
             timestamp = System.currentTimeMillis()
         )
-        val sent = routingEngine.sendOutboundPacket(packet)
+        val sent = routingEngine.sendOutboundPacket(packet, _activeChannelMode.value.transportName)
         if (sent) {
             updateMessageStatus(peerId, messageId, MessageStatus.SENT)
             return true
@@ -324,8 +369,8 @@ class MeshEngine private constructor(private val context: Context) {
         return false
     }
 
-    /** Updates a message's status both on disk and in the live in-memory StateFlow. */
-    fun updateMessageStatus(peerId: String, messageId: String, newStatus: MessageStatus) {
+    /** Updates a message's status both on disk and in the live in-memory StateFlow safely. */
+    fun updateMessageStatus(peerId: String, messageId: String, newStatus: MessageStatus) = synchronized(stateLock) {
         messageStore.updateMessageStatus(peerId, messageId, newStatus)
         val updated = _conversations.value.toMutableMap()
         val list = updated[peerId]?.toMutableList() ?: return
@@ -437,10 +482,16 @@ class MeshEngine private constructor(private val context: Context) {
             PacketType.SOS_BEACON -> {
                 // Only process alerts from OTHER nodes — we already stored our own in triggerSosBeacon
                 if (packet.senderId == localNodeId) return
-                val current = _sosAlerts.value.toMutableList()
-                if (current.none { it.packetId == packet.packetId }) {
-                    current.add(0, packet)
-                    _sosAlerts.value = current
+                var shouldNotify = false
+                synchronized(stateLock) {
+                    val current = _sosAlerts.value.toMutableList()
+                    if (current.none { it.packetId == packet.packetId }) {
+                        current.add(0, packet)
+                        _sosAlerts.value = current
+                        shouldNotify = true
+                    }
+                }
+                if (shouldNotify) {
                     // Show system heads-up notification only for REMOTE beacons
                     com.example.zerogrid.service.MeshForegroundService.showSosNotification(
                         context,
@@ -451,10 +502,12 @@ class MeshEngine private constructor(private val context: Context) {
             }
             PacketType.DIRECT_MESSAGE -> {
                 // Update in-memory receivedMessages flow
-                val current = _receivedMessages.value.toMutableList()
-                if (current.none { it.packetId == packet.packetId }) {
-                    current.add(packet)
-                    _receivedMessages.value = current
+                synchronized(stateLock) {
+                    val current = _receivedMessages.value.toMutableList()
+                    if (current.none { it.packetId == packet.packetId }) {
+                        current.add(packet)
+                        _receivedMessages.value = current
+                    }
                 }
 
                 // If sender has an alias in peerTable, ensure it is persisted in messageStore
@@ -483,7 +536,7 @@ class MeshEngine private constructor(private val context: Context) {
                     type = PacketType.ACK,
                     payload = packet.packetId
                 )
-                routingEngine.sendOutboundPacket(ackPacket)
+                routingEngine.sendOutboundPacket(ackPacket, _activeChannelMode.value.transportName)
             }
             PacketType.ACK -> {
                 val originalMsgId = packet.payload
@@ -492,10 +545,12 @@ class MeshEngine private constructor(private val context: Context) {
                 }
             }
             PacketType.CHANNEL_BROADCAST -> {
-                val current = _receivedMessages.value.toMutableList()
-                if (current.none { it.packetId == packet.packetId }) {
-                    current.add(packet)
-                    _receivedMessages.value = current
+                synchronized(stateLock) {
+                    val current = _receivedMessages.value.toMutableList()
+                    if (current.none { it.packetId == packet.packetId }) {
+                        current.add(packet)
+                        _receivedMessages.value = current
+                    }
                 }
             }
             else -> {
@@ -507,8 +562,8 @@ class MeshEngine private constructor(private val context: Context) {
         }
     }
 
-    /** Persist a message to disk and update the in-memory _conversations StateFlow. */
-    private fun persistAndUpdateConversation(peerId: String, msg: StoredMessage) {
+    /** Persist a message to disk and update the in-memory _conversations StateFlow safely. */
+    private fun persistAndUpdateConversation(peerId: String, msg: StoredMessage) = synchronized(stateLock) {
         messageStore.appendMessage(peerId, msg)
         val updated = _conversations.value.toMutableMap()
         val existing = updated[peerId]?.toMutableList() ?: mutableListOf()

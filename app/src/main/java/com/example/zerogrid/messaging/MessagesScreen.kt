@@ -24,8 +24,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.clip
 import com.example.zerogrid.mesh.engine.MeshEngine
 import com.example.zerogrid.mesh.engine.MeshNode
+import com.example.zerogrid.mesh.engine.MeshChannelMode
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
@@ -43,6 +45,7 @@ fun MessagesScreen(
     val sosAlerts by meshEngine.sosAlerts.collectAsState()
     val conversations by meshEngine.conversations.collectAsState()
     val receivedMessages by meshEngine.receivedMessages.collectAsState()
+    val activeChannelMode by meshEngine.activeChannelMode.collectAsState()
 
     val channelMessages = receivedMessages.filter { it.recipientId == "*" }
 
@@ -93,7 +96,12 @@ fun MessagesScreen(
 
     Scaffold(
         containerColor = DarkBackground,
-        topBar = { MessagesTopBar() },
+        topBar = {
+            MessagesTopBar(
+                activeChannelMode = activeChannelMode,
+                onSwitchChannel = { newMode -> meshEngine.setMeshChannelMode(newMode) }
+            )
+        },
         bottomBar = { ZeroGridBottomBar(currentScreen = Screen.MESSAGES, onNavigate = onNavigate) },
         floatingActionButton = { NewMessageFab() }
     ) { paddingValues ->
@@ -107,33 +115,36 @@ fun MessagesScreen(
             Spacer(modifier = Modifier.height(16.dp))
 
             // Dynamic mesh status bar
-            MeshActiveStatusBar(peerCount = peerCount)
+            MeshActiveStatusBar(
+                peerCount = peerCount,
+                activeChannelMode = activeChannelMode
+            )
             Spacer(modifier = Modifier.height(16.dp))
 
             MessageFilterChipsRow(selected = selectedFilter, onSelected = { selectedFilter = it })
             Spacer(modifier = Modifier.height(20.dp))
 
-            // ── BLUETOOTH PEERS ───────────────────────────────────────────────
+            // ── PEERS (ACTIVE CHANNEL ONLY) ──────────────────────────────────
             if (selectedFilter == "All" || selectedFilter == "Private") {
-                TransportPeerSection(
-                    label = "BLUETOOTH PEERS",
-                    icon = Icons.Outlined.Bluetooth,
-                    iconTint = Color(0xFF7C9FFF),
-                    peers = blePeers,
-                    emptyHint = "No BLE peers in range",
-                    onPeerClick = { peer -> onOpenPeerChat?.invoke(peer.nodeId) }
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-
-            // ── WI-FI PEERS ───────────────────────────────────────────────────
-                TransportPeerSection(
-                    label = "WI-FI PEERS",
-                    icon = Icons.Outlined.Wifi,
-                    iconTint = Color(0xFF4ECDC4),
-                    peers = wifiPeers,
-                    emptyHint = "No Wi-Fi peers in range",
-                    onPeerClick = { peer -> onOpenPeerChat?.invoke(peer.nodeId) }
-                )
+                if (activeChannelMode == MeshChannelMode.BLE) {
+                    TransportPeerSection(
+                        label = "BLUETOOTH PEERS (ACTIVE)",
+                        icon = Icons.Outlined.Bluetooth,
+                        iconTint = Color(0xFF7C9FFF),
+                        peers = blePeers,
+                        emptyHint = "No BLE peers in range",
+                        onPeerClick = { peer -> onOpenPeerChat?.invoke(peer.nodeId) }
+                    )
+                } else {
+                    TransportPeerSection(
+                        label = "WI-FI DIRECT PEERS (ACTIVE)",
+                        icon = Icons.Outlined.Wifi,
+                        iconTint = Color(0xFF4ECDC4),
+                        peers = wifiPeers,
+                        emptyHint = "No Wi-Fi Direct peers in range",
+                        onPeerClick = { peer -> onOpenPeerChat?.invoke(peer.nodeId) }
+                    )
+                }
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
@@ -699,12 +710,16 @@ private fun DirectMessagesSection(
 }
 
 @Composable
-private fun MessagesTopBar() {
+private fun MessagesTopBar(
+    activeChannelMode: MeshChannelMode,
+    onSwitchChannel: (MeshChannelMode) -> Unit
+) {
+    val modeColor = if (activeChannelMode == MeshChannelMode.BLE) Color(0xFF7C9FFF) else Color(0xFF4ECDC4)
     Column {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(horizontal = 20.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -715,27 +730,56 @@ private fun MessagesTopBar() {
                     tint = StatusActive,
                     modifier = Modifier.size(24.dp)
                 )
-                Spacer(modifier = Modifier.width(12.dp))
+                Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = "ZeroGrid",
                     color = StatusActive,
-                    fontSize = 22.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
+
+            // Active channel switcher pill
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(Color(0xFF1E2638))
+                    .border(1.dp, modeColor.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                    .clickable {
+                        val next = if (activeChannelMode == MeshChannelMode.BLE) MeshChannelMode.WIFI_DIRECT else MeshChannelMode.BLE
+                        onSwitchChannel(next)
+                    }
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Icon(
+                    imageVector = if (activeChannelMode == MeshChannelMode.BLE) Icons.Outlined.Bluetooth else Icons.Outlined.Wifi,
+                    contentDescription = null,
+                    tint = modeColor,
+                    modifier = Modifier.size(13.dp)
+                )
+                Text(
+                    text = activeChannelMode.label,
+                    color = modeColor,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = FontFamily.Monospace
+                )
+                Icon(
+                    imageVector = Icons.Outlined.SwapHoriz,
+                    contentDescription = "Switch Channel",
+                    tint = modeColor.copy(alpha = 0.7f),
+                    modifier = Modifier.size(13.dp)
+                )
+            }
+
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     imageVector = Icons.Outlined.Search,
                     contentDescription = "Search",
                     tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(20.dp))
-                Icon(
-                    imageVector = Icons.Outlined.Edit,
-                    contentDescription = "Edit",
-                    tint = StatusActive,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(22.dp)
                 )
             }
         }
@@ -744,7 +788,11 @@ private fun MessagesTopBar() {
 }
 
 @Composable
-private fun MeshActiveStatusBar(peerCount: Int) {
+private fun MeshActiveStatusBar(
+    peerCount: Int,
+    activeChannelMode: MeshChannelMode
+) {
+    val modeColor = if (activeChannelMode == MeshChannelMode.BLE) Color(0xFF7C9FFF) else Color(0xFF4ECDC4)
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = CardBackground),
@@ -758,11 +806,11 @@ private fun MeshActiveStatusBar(peerCount: Int) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(6.dp).background(StatusActive, CircleShape))
+                Box(modifier = Modifier.size(6.dp).background(modeColor, CircleShape))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "MESH ACTIVE  •  $peerCount PEER${if (peerCount != 1) "S" else ""}",
-                    color = StatusActive,
+                    text = "${activeChannelMode.label.uppercase()} ACTIVE  •  $peerCount PEER${if (peerCount != 1) "S" else ""}",
+                    color = modeColor,
                     fontSize = 12.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold

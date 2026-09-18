@@ -23,6 +23,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.border
+import androidx.compose.ui.draw.clip
+import com.example.zerogrid.mesh.engine.MeshEngine
+import com.example.zerogrid.mesh.engine.MeshChannelMode
 import com.example.zerogrid.navigation.*
 import com.example.zerogrid.ui.theme.*
 import com.zerogrid.mesh.app.ui.UserRole
@@ -38,11 +42,15 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val sessionManager = remember { UserSessionManager.getInstance(context) }
+    val meshEngine = remember { MeshEngine.getInstance(context) }
+    val activeChannelMode by meshEngine.activeChannelMode.collectAsState()
 
     var meshDiscoveryEnabled by remember { mutableStateOf(true) }
-    var automaticSwitchingEnabled by remember { mutableStateOf(true) }
     var relayModeEnabled by remember { mutableStateOf(true) }
     var emergencyAlertsEnabled by remember { mutableStateOf(true) }
+
+    // Channel selection dialog state
+    var showChannelDialog by remember { mutableStateOf(false) }
 
     // Edit name dialog state
     var showEditNameDialog by remember { mutableStateOf(false) }
@@ -101,6 +109,75 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(onClick = { showEditNameDialog = false }) {
                     Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    // ── Channel Selection Dialog ─────────────────────────────────────────
+    if (showChannelDialog) {
+        AlertDialog(
+            onDismissRequest = { showChannelDialog = false },
+            containerColor = CardBackground,
+            title = {
+                Text("Select Communication Channel", color = TextPrimary, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column {
+                    Text(
+                        "ZeroGrid operates strictly on one radio at a time to prevent GATT/socket conflicts and chat desync.",
+                        color = TextSecondary,
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    for (mode in MeshChannelMode.values()) {
+                        val isSelected = mode == activeChannelMode
+                        val modeColor = if (mode == MeshChannelMode.BLE) Color(0xFF7C9FFF) else Color(0xFF4ECDC4)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isSelected) modeColor.copy(alpha = 0.15f) else SurfaceDarker)
+                                .border(1.dp, if (isSelected) modeColor else Color.Transparent, RoundedCornerShape(10.dp))
+                                .clickable {
+                                    meshEngine.setMeshChannelMode(mode)
+                                    showChannelDialog = false
+                                }
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (mode == MeshChannelMode.BLE) Icons.Outlined.Bluetooth else Icons.Outlined.Wifi,
+                                contentDescription = null,
+                                tint = modeColor,
+                                modifier = Modifier.size(22.dp)
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = mode.label,
+                                    color = TextPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
+                                Text(
+                                    text = if (mode == MeshChannelMode.BLE) "Low power, high reliability mesh" else "High bandwidth, direct P2P mesh",
+                                    color = TextSecondary,
+                                    fontSize = 12.sp
+                                )
+                            }
+                            if (isSelected) {
+                                Icon(Icons.Outlined.Check, contentDescription = "Selected", tint = modeColor, modifier = Modifier.size(20.dp))
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showChannelDialog = false }) {
+                    Text("Close", color = PrimaryCyan)
                 }
             }
         )
@@ -218,7 +295,7 @@ fun SettingsScreen(
 
             // ── Network Section ───────────────────────────────────────────
             Text(
-                text = "NETWORK",
+                text = "NETWORK & RADIO",
                 color = TextSecondary,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
@@ -232,20 +309,17 @@ fun SettingsScreen(
                 border = BorderStroke(1.dp, DividerColor)
             ) {
                 Column {
-                    SettingsNavigationRow(title = "Network Mode", subtitle = "Automatic", onClick = { })
-                    HorizontalDivider(color = DividerColor)
-                    SettingsSwitchRow(
-                        title = "Mesh Discovery",
-                        subtitle = "Active",
-                        checked = meshDiscoveryEnabled,
-                        onCheckedChange = { meshDiscoveryEnabled = it }
+                    SettingsNavigationRow(
+                        title = "Communication Channel",
+                        subtitle = "${activeChannelMode.label} (Single-Radio Mode)",
+                        onClick = { showChannelDialog = true }
                     )
                     HorizontalDivider(color = DividerColor)
                     SettingsSwitchRow(
-                        title = "Automatic Switching",
-                        subtitle = "LAN ↔ Wi-Fi Direct",
-                        checked = automaticSwitchingEnabled,
-                        onCheckedChange = { automaticSwitchingEnabled = it }
+                        title = "Mesh Discovery",
+                        subtitle = "Active on ${activeChannelMode.label}",
+                        checked = meshDiscoveryEnabled,
+                        onCheckedChange = { meshDiscoveryEnabled = it }
                     )
                     HorizontalDivider(color = DividerColor)
                     SettingsSwitchRow(

@@ -14,7 +14,7 @@ data class MeshNode(
     var lastSeenTimestamp: Long = System.currentTimeMillis(),
     var hopDistance: Int = 1,
     var isDirectNeighbor: Boolean = true,
-    val availableTransports: MutableSet<String> = mutableSetOf()
+    val availableTransports: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 ) {
     companion object {
         const val TRANSPORT_BLE = "BLE"

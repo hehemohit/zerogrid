@@ -38,15 +38,7 @@ fun SendSosScreen(onNavigate: (Screen) -> Unit = {}) {
     var selectedType by remember { mutableStateOf("Medical") }
     var emergencyMessage by remember { mutableStateOf("") }
     var locationSharingEnabled by remember { mutableStateOf(true) }
-    var selectedTransport by remember { mutableStateOf("Both") }
-    var showWifiDialog by remember { mutableStateOf(false) }
-
-    if (showWifiDialog) {
-        WifiRequiredDialog(
-            onDismiss = { showWifiDialog = false },
-            onEnableClick = { HardwareStateManager.openWifiSettings(context) }
-        )
-    }
+    val activeChannelMode by meshEngine.activeChannelMode.collectAsState()
 
     Scaffold(
         containerColor = DarkBackground,
@@ -62,8 +54,6 @@ fun SendSosScreen(onNavigate: (Screen) -> Unit = {}) {
             Spacer(modifier = Modifier.height(12.dp))
             EmergencyBroadcastWarningCard()
             Spacer(modifier = Modifier.height(20.dp))
-
-            // ... (rest of the code remains the same until the button)
 
             // Emergency Type Section
             Text(
@@ -158,20 +148,22 @@ fun SendSosScreen(onNavigate: (Screen) -> Unit = {}) {
 
             // Emergency Transport Section
             Text(
-                text = "EMERGENCY TRANSPORT",
+                text = "EMERGENCY CHANNEL",
                 color = TextSecondary,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(10.dp))
-            SosTransportSelectorCard(
-                selectedTransport = selectedTransport,
-                onSelectTransport = { transport ->
-                    if (transport == "Wi-Fi Direct Only" && !HardwareStateManager.isWifiEnabled(context)) {
-                        showWifiDialog = true
+            ActiveSosChannelCard(
+                activeMode = activeChannelMode,
+                onSwitchMode = {
+                    val newMode = if (activeChannelMode == com.example.zerogrid.mesh.engine.MeshChannelMode.BLE) {
+                        com.example.zerogrid.mesh.engine.MeshChannelMode.WIFI_DIRECT
+                    } else {
+                        com.example.zerogrid.mesh.engine.MeshChannelMode.BLE
                     }
-                    selectedTransport = transport
+                    meshEngine.setMeshChannelMode(newMode)
                 }
             )
             Spacer(modifier = Modifier.height(24.dp))
@@ -179,17 +171,11 @@ fun SendSosScreen(onNavigate: (Screen) -> Unit = {}) {
             // Broadcast SOS Action Button
             Button(
                 onClick = {
-                    val preferred = when (selectedTransport) {
-                        "BLE Only" -> MeshNode.TRANSPORT_BLE
-                        "Wi-Fi Direct Only" -> MeshNode.TRANSPORT_WIFI_DIRECT
-                        else -> null
-                    }
                     meshEngine.triggerSosBeacon(
                         category = selectedType,
                         message = emergencyMessage,
                         lat = if (locationSharingEnabled) 0.0 else null, // Placeholder coordinates
-                        lon = if (locationSharingEnabled) 0.0 else null,
-                        preferredTransport = preferred
+                        lon = if (locationSharingEnabled) 0.0 else null
                     )
                     onNavigate(Screen.SOS_CENTER)
                 },
@@ -616,63 +602,59 @@ private fun AttachButton(modifier: Modifier = Modifier, icon: ImageVector, label
 }
 
 @Composable
-private fun SosTransportSelectorCard(
-    selectedTransport: String,
-    onSelectTransport: (String) -> Unit
+private fun ActiveSosChannelCard(
+    activeMode: com.example.zerogrid.mesh.engine.MeshChannelMode,
+    onSwitchMode: () -> Unit
 ) {
-    val options = listOf(
-        Triple("Both", "Both (BLE + Wi-Fi Direct)", "Maximum reach across all nearby mesh nodes"),
-        Triple("BLE Only", "BLE Only", "Low power mesh beacon for battery conservation"),
-        Triple("Wi-Fi Direct Only", "Wi-Fi Direct Only", "High bandwidth broadcast to local Wi-Fi cluster")
-    )
+    val isBle = activeMode == com.example.zerogrid.mesh.engine.MeshChannelMode.BLE
+    val channelIcon = if (isBle) Icons.Outlined.Bluetooth else Icons.Outlined.Wifi
+    val nextModeName = if (isBle) "Wi-Fi Direct" else "BLE"
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(CardBackground, RoundedCornerShape(16.dp))
-            .border(1.dp, DividerColor, RoundedCornerShape(16.dp))
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, DividerColor)
     ) {
-        options.forEach { (id, title, desc) ->
-            val isSelected = selectedTransport == id
-            val itemBg = if (isSelected) StatusActive.copy(alpha = 0.12f) else SurfaceDarker
-            val itemBorder = if (isSelected) StatusActive else Color.Transparent
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(itemBg, RoundedCornerShape(12.dp))
-                    .border(1.dp, itemBorder, RoundedCornerShape(12.dp))
-                    .clickable { onSelectTransport(id) }
-                    .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RadioButton(
-                    selected = isSelected,
-                    onClick = { onSelectTransport(id) },
-                    colors = RadioButtonDefaults.colors(
-                        selectedColor = StatusActive,
-                        unselectedColor = TextSecondary
-                    )
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Column(modifier = Modifier.weight(1f)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Box(
+                    modifier = Modifier
+                        .size(42.dp)
+                        .background(SurfaceDarker, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(channelIcon, null, tint = StatusActive, modifier = Modifier.size(22.dp))
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
                     Text(
-                        text = title,
-                        color = if (isSelected) StatusActive else TextPrimary,
-                        fontSize = 13.sp,
+                        text = activeMode.displayName,
+                        color = TextPrimary,
+                        fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = desc,
+                        text = "Exclusively broadcasting across this radio",
                         color = TextSecondary,
-                        fontSize = 11.sp,
-                        lineHeight = 15.sp
+                        fontSize = 11.sp
                     )
                 }
+            }
+            OutlinedButton(
+                onClick = onSwitchMode,
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(1.dp, StatusActive.copy(alpha = 0.6f)),
+                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+            ) {
+                Text("Switch to $nextModeName", color = StatusActive, fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
         }
     }

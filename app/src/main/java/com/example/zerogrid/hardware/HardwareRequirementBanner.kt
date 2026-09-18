@@ -13,6 +13,7 @@ import androidx.compose.material.icons.filled.LocationOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -23,6 +24,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.zerogrid.ui.theme.*
+
+import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.runtime.collectAsState
+import com.example.zerogrid.mesh.engine.MeshChannelMode
+import com.example.zerogrid.mesh.engine.MeshEngine
 
 private val WarningAmber = Color(0xFFFF9500)
 private val WarningAmberBg = Color(0x1AFF9500)
@@ -36,13 +42,16 @@ fun HardwareRequirementBanner(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val meshEngine = remember { MeshEngine.getInstance(context) }
+    val activeMode by meshEngine.activeChannelMode.collectAsState()
     val hardwareState by rememberHardwareState()
 
-    val needsBluetooth = !hardwareState.isBluetoothEnabled
+    val needsBluetooth = activeMode == MeshChannelMode.BLE && !hardwareState.isBluetoothEnabled
+    val needsWifi = activeMode == MeshChannelMode.WIFI_DIRECT && !hardwareState.isWifiEnabled
     val needsLocation = !hardwareState.isLocationEnabled
 
     AnimatedVisibility(
-        visible = needsBluetooth || needsLocation,
+        visible = needsBluetooth || needsWifi || needsLocation,
         enter = expandVertically(),
         exit = shrinkVertically()
     ) {
@@ -56,10 +65,21 @@ fun HardwareRequirementBanner(
                 HardwareWarningCard(
                     icon = Icons.Default.BluetoothDisabled,
                     title = "BLUETOOTH IS DISABLED",
-                    message = "Bluetooth is required for ZeroGrid mesh discovery and direct packet exchange.",
+                    message = "Bluetooth is required for ZeroGrid BLE mesh discovery and packet exchange.",
                     buttonText = "Turn On",
                     isCritical = true,
                     onClick = { HardwareStateManager.openBluetoothSettings(context) }
+                )
+            }
+
+            if (needsWifi) {
+                HardwareWarningCard(
+                    icon = Icons.Default.WifiOff,
+                    title = "WI-FI IS DISABLED",
+                    message = "Wi-Fi is required for ZeroGrid Wi-Fi Direct mesh communication.",
+                    buttonText = "Turn On",
+                    isCritical = true,
+                    onClick = { HardwareStateManager.openWifiSettings(context) }
                 )
             }
 
@@ -67,7 +87,7 @@ fun HardwareRequirementBanner(
                 HardwareWarningCard(
                     icon = Icons.Default.LocationOff,
                     title = "LOCATION SERVICES DISABLED",
-                    message = "Android requires device Location to be turned ON for BLE and Wi-Fi mesh scanning.",
+                    message = "Android requires device Location to be ON for wireless mesh peer discovery.",
                     buttonText = "Enable",
                     isCritical = false,
                     onClick = { HardwareStateManager.openLocationSettings(context) }

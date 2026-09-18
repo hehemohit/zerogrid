@@ -7,6 +7,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.SignalCellularAlt
 import androidx.compose.material.icons.outlined.*
@@ -14,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -25,6 +27,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import com.example.zerogrid.mesh.engine.MeshEngine
 import com.example.zerogrid.mesh.engine.MeshNode
+import com.example.zerogrid.mesh.engine.MeshChannelMode
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.navigation.ZeroGridBottomBar
 import com.example.zerogrid.ui.theme.*
@@ -34,10 +37,16 @@ fun MeshDashboardScreen(onNavigate: (Screen) -> Unit = {}) {
     val meshEngine = MeshEngine.getInstance(LocalContext.current)
     val peers by meshEngine.connectedPeers.collectAsState()
     val isMeshActive by meshEngine.isMeshActive.collectAsState()
+    val activeChannelMode by meshEngine.activeChannelMode.collectAsState()
 
     Scaffold(
         containerColor = DarkBackground,
-        topBar = { DashboardTopBar(isMeshActive = isMeshActive) },
+        topBar = {
+            DashboardTopBar(
+                isMeshActive = isMeshActive,
+                activeChannelMode = activeChannelMode
+            )
+        },
         bottomBar = { ZeroGridBottomBar(currentScreen = Screen.HOME, onNavigate = onNavigate) },
         floatingActionButton = { SOSFab(onNavigate = onNavigate) }
     ) { paddingValues ->
@@ -49,7 +58,16 @@ fun MeshDashboardScreen(onNavigate: (Screen) -> Unit = {}) {
                 .padding(horizontal = 20.dp)
         ) {
             Spacer(modifier = Modifier.height(16.dp))
-            MeshStatusCard(peersCount = peers.size, onNavigate = onNavigate)
+            MeshStatusCard(
+                peersCount = peers.size,
+                activeChannelMode = activeChannelMode,
+                onNavigate = onNavigate
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            CommunicationChannelCard(
+                activeChannelMode = activeChannelMode,
+                onSelectChannel = { newMode -> meshEngine.setMeshChannelMode(newMode) }
+            )
             Spacer(modifier = Modifier.height(16.dp))
             QuickActionsGrid(peersCount = peers.size, onNavigate = onNavigate)
             Spacer(modifier = Modifier.height(24.dp))
@@ -60,7 +78,10 @@ fun MeshDashboardScreen(onNavigate: (Screen) -> Unit = {}) {
 }
 
 @Composable
-private fun DashboardTopBar(isMeshActive: Boolean) {
+private fun DashboardTopBar(
+    isMeshActive: Boolean,
+    activeChannelMode: MeshChannelMode
+) {
     Column {
         Row(
             modifier = Modifier
@@ -103,7 +124,7 @@ private fun DashboardTopBar(isMeshActive: Boolean) {
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = if (isMeshActive) "Mesh Active" else "Mesh Offline",
+                        text = if (isMeshActive) "${activeChannelMode.label} Active" else "Mesh Offline",
                         color = if (isMeshActive) StatusActive else TextSecondary,
                         fontSize = 12.sp,
                         fontFamily = FontFamily.Monospace
@@ -123,7 +144,11 @@ private fun DashboardTopBar(isMeshActive: Boolean) {
 }
 
 @Composable
-private fun MeshStatusCard(peersCount: Int, onNavigate: (Screen) -> Unit = {}) {
+private fun MeshStatusCard(
+    peersCount: Int,
+    activeChannelMode: MeshChannelMode,
+    onNavigate: (Screen) -> Unit = {}
+) {
     Card(
         onClick = { onNavigate(Screen.NETWORK_STATUS) },
         modifier = Modifier.fillMaxWidth(),
@@ -154,7 +179,7 @@ private fun MeshStatusCard(peersCount: Int, onNavigate: (Screen) -> Unit = {}) {
                 )
             }
             Text(
-                text = "Multi-protocol Discovery Active",
+                text = "${activeChannelMode.label} Channel Active • Single-Radio Mode",
                 color = TextSecondary,
                 fontSize = 13.sp,
                 fontFamily = FontFamily.Monospace,
@@ -178,6 +203,128 @@ private fun MeshStatusCard(peersCount: Int, onNavigate: (Screen) -> Unit = {}) {
                 color = TextSecondary,
                 fontSize = 13.sp
             )
+        }
+    }
+}
+
+@Composable
+private fun CommunicationChannelCard(
+    activeChannelMode: MeshChannelMode,
+    onSelectChannel: (MeshChannelMode) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "COMMUNICATION CHANNEL",
+                    color = TextSecondary,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "Single-Radio Active",
+                    color = StatusActive,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // BLE Mesh Option
+                val isBle = activeChannelMode == MeshChannelMode.BLE
+                val bleBorderColor = if (isBle) Color(0xFF7C9FFF) else Color.Transparent
+                val bleBg = if (isBle) Color(0xFF16203A) else SurfaceDarker
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(bleBg)
+                        .border(1.dp, bleBorderColor, RoundedCornerShape(12.dp))
+                        .clickable { onSelectChannel(MeshChannelMode.BLE) }
+                        .padding(12.dp)
+                ) {
+                    Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Bluetooth,
+                                contentDescription = null,
+                                tint = if (isBle) Color(0xFF7C9FFF) else TextSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "BLE Mesh",
+                                color = if (isBle) TextPrimary else TextSecondary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (isBle) "Active • Low Power" else "Tap to switch",
+                            color = if (isBle) Color(0xFF7C9FFF) else TextSecondary.copy(alpha = 0.7f),
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+
+                // Wi-Fi Direct Option
+                val isWifi = activeChannelMode == MeshChannelMode.WIFI_DIRECT
+                val wifiBorderColor = if (isWifi) Color(0xFF4ECDC4) else Color.Transparent
+                val wifiBg = if (isWifi) Color(0xFF132B2B) else SurfaceDarker
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(wifiBg)
+                        .border(1.dp, wifiBorderColor, RoundedCornerShape(12.dp))
+                        .clickable { onSelectChannel(MeshChannelMode.WIFI_DIRECT) }
+                        .padding(12.dp)
+                ) {
+                    Column {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.Wifi,
+                                contentDescription = null,
+                                tint = if (isWifi) Color(0xFF4ECDC4) else TextSecondary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Wi-Fi Direct",
+                                color = if (isWifi) TextPrimary else TextSecondary,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (isWifi) "Active • High Bandwidth" else "Tap to switch",
+                            color = if (isWifi) Color(0xFF4ECDC4) else TextSecondary.copy(alpha = 0.7f),
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+            }
         }
     }
 }

@@ -30,6 +30,8 @@ import com.example.zerogrid.mesh.engine.MeshChannelMode
 import com.example.zerogrid.auth.AuthViewModel
 import com.example.zerogrid.auth.ProfileUiState
 import com.example.zerogrid.network.AuthRepository
+import com.example.zerogrid.ui.components.ZeroGridDatePickerDialog
+import com.example.zerogrid.util.ValidationUtils
 import com.example.zerogrid.navigation.*
 import com.example.zerogrid.ui.theme.*
 import com.zerogrid.mesh.app.ui.UserRole
@@ -71,6 +73,22 @@ fun SettingsScreen(
     var showEditProfileDialog by remember { mutableStateOf(false) }
     var editPhoneValue by remember { mutableStateOf(phoneNumber) }
     var editDobValue by remember { mutableStateOf(dateOfBirth) }
+    var showSettingsDatePicker by remember { mutableStateOf(false) }
+
+    val isEditPhoneValid = remember(editPhoneValue) {
+        editPhoneValue.isBlank() || ValidationUtils.isValidPhone(editPhoneValue)
+    }
+
+    // Calendar Date Picker Modal for Settings
+    if (showSettingsDatePicker) {
+        ZeroGridDatePickerDialog(
+            onDateSelected = { pickedDate ->
+                editDobValue = pickedDate
+                showSettingsDatePicker = false
+            },
+            onDismiss = { showSettingsDatePicker = false }
+        )
+    }
 
     // Sync profile on launch if logged in
     LaunchedEffect(Unit) {
@@ -188,42 +206,78 @@ fun SettingsScreen(
                             focusedLabelColor = PrimaryCyan
                         )
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = editDobValue,
-                        onValueChange = { editDobValue = it },
-                        label = { Text("Date of Birth (YYYY-MM-DD)", color = TextSecondary) },
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = TextPrimary,
-                            unfocusedTextColor = TextPrimary,
-                            focusedContainerColor = SurfaceDarker,
-                            unfocusedContainerColor = SurfaceDarker,
-                            focusedBorderColor = PrimaryCyan,
-                            unfocusedBorderColor = DividerColor,
-                            focusedLabelColor = PrimaryCyan
+                    if (editPhoneValue.isNotBlank() && !isEditPhoneValid) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Invalid phone number (7-15 digits with optional +)",
+                            color = Color(0xFFFF5252),
+                            fontSize = 11.sp
                         )
-                    )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Surface(
+                        onClick = { showSettingsDatePicker = true },
+                        shape = RoundedCornerShape(10.dp),
+                        color = SurfaceDarker,
+                        border = BorderStroke(1.dp, if (editDobValue.isNotBlank()) PrimaryCyan else DividerColor),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.CalendarToday,
+                                contentDescription = null,
+                                tint = if (editDobValue.isNotBlank()) PrimaryCyan else TextSecondary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Date of Birth",
+                                    color = if (editDobValue.isNotBlank()) PrimaryCyan else TextSecondary,
+                                    fontSize = 11.sp
+                                )
+                                Text(
+                                    text = editDobValue.ifEmpty { "Tap to pick date" },
+                                    color = if (editDobValue.isNotBlank()) TextPrimary else TextSecondary,
+                                    fontSize = 14.sp
+                                )
+                            }
+                            Text(
+                                text = "Calendar",
+                                color = PrimaryCyan,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    val trimmedPhone = editPhoneValue.trim()
-                    val trimmedDob = editDobValue.trim()
-                    sessionManager.setPhoneNumber(trimmedPhone)
-                    sessionManager.setDateOfBirth(trimmedDob)
-                    phoneNumber = trimmedPhone
-                    dateOfBirth = trimmedDob
-                    if (sessionManager.isLoggedIn()) {
-                        if (!isProfileComplete && trimmedPhone.isNotBlank()) {
-                            authViewModel.completeProfile(trimmedPhone, trimmedDob)
-                        } else {
-                            authViewModel.updateProfile(phoneNumber = trimmedPhone, dateOfBirth = trimmedDob)
+                TextButton(
+                    enabled = isEditPhoneValid,
+                    onClick = {
+                        val trimmedPhone = editPhoneValue.trim()
+                        val trimmedDob = editDobValue.trim()
+                        sessionManager.setPhoneNumber(trimmedPhone)
+                        sessionManager.setDateOfBirth(trimmedDob)
+                        phoneNumber = trimmedPhone
+                        dateOfBirth = trimmedDob
+                        if (sessionManager.isLoggedIn()) {
+                            if (!isProfileComplete && trimmedPhone.isNotBlank()) {
+                                authViewModel.completeProfile(trimmedPhone, trimmedDob)
+                            } else {
+                                authViewModel.updateProfile(phoneNumber = trimmedPhone, dateOfBirth = trimmedDob)
+                            }
                         }
+                        showEditProfileDialog = false
                     }
-                    showEditProfileDialog = false
-                }) {
-                    Text("Save", color = PrimaryCyan, fontWeight = FontWeight.Bold)
+                ) {
+                    Text("Save", color = if (isEditPhoneValid) PrimaryCyan else TextSecondary, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -515,6 +569,12 @@ fun SettingsScreen(
                 border = BorderStroke(1.dp, DividerColor)
             ) {
                 Column {
+                    SettingsNavigationRow(
+                        title = "Emergency Contacts",
+                        subtitle = "Manage trusted contacts for SOS alerts",
+                        onClick = { onNavigate(Screen.EMERGENCY_CONTACTS) }
+                    )
+                    HorizontalDivider(color = DividerColor)
                     SettingsNavigationRow(title = "Notifications", subtitle = "Enabled", onClick = { })
                     HorizontalDivider(color = DividerColor)
                     SettingsNavigationRow(

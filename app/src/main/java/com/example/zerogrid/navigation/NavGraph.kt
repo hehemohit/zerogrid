@@ -115,6 +115,10 @@ fun ZeroGridApp(onLogout: () -> Unit = {}) {
                     Screen.NETWORK_STATUS -> NetworkStatusScreen(onNavigate = { navigateTo(it) })
                     Screen.SECURITY_PRIVACY -> SecurityPrivacyScreen(onNavigate = { navigateTo(it) })
                     Screen.DEBUG_CONSOLE -> DebugConsoleScreen(onNavigate = { navigateTo(it) })
+                    Screen.EMERGENCY_CONTACTS -> com.example.zerogrid.contacts.EmergencyContactsScreen(
+                        onNavigate = { navigateTo(it) },
+                        onBack = { navigateBack() }
+                    )
                 }
             }
         }

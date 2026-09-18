@@ -7,4 +7,5 @@ object ApiConstants {
     const val GET_ME             = "api/users/me"
     const val UPDATE_ME          = "api/users/me"
     const val COMPLETE_PROFILE   = "api/users/me/complete-profile"
+    const val CONTACTS           = "api/contacts"
 }

@@ -31,6 +31,9 @@ import com.example.zerogrid.ui.theme.*
 import com.zerogrid.mesh.app.ui.UserRole
 import com.zerogrid.mesh.app.ui.UserSessionManager
 
+import com.example.zerogrid.ui.components.ZeroGridDatePickerDialog
+import com.example.zerogrid.util.ValidationUtils
+
 @Composable
 fun ProfileCompletionScreen(
     sessionManager: UserSessionManager,
@@ -44,12 +47,28 @@ fun ProfileCompletionScreen(
 
     var phoneNumber by remember { mutableStateOf(sessionManager.getPhoneNumber()) }
     var dateOfBirth by remember { mutableStateOf(sessionManager.getDateOfBirth()) }
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    val isPhoneValid = remember(phoneNumber) {
+        phoneNumber.isBlank() || ValidationUtils.isValidPhone(phoneNumber)
+    }
 
     val userRole = sessionManager.getUserRole() ?: UserRole.CITIZEN
     val displayName = sessionManager.getUserDisplayName() ?: "Survivor"
     val email = sessionManager.getUserEmail() ?: ""
 
     val isLoading = profileState is ProfileUiState.Loading
+
+    // Calendar Date Picker Modal
+    if (showDatePicker) {
+        ZeroGridDatePickerDialog(
+            onDateSelected = { pickedDate ->
+                dateOfBirth = pickedDate
+                showDatePicker = false
+            },
+            onDismiss = { showDatePicker = false }
+        )
+    }
 
     // Observe state updates
     LaunchedEffect(profileState) {
@@ -182,38 +201,78 @@ fun ProfileCompletionScreen(
                 AuthTextField(
                     value = phoneNumber,
                     onValueChange = { phoneNumber = it },
-                    label = "Phone Number (for SOS & peer verification)",
+                    label = "Phone Number (with country code e.g. +1234567890)",
                     leadingIcon = Icons.Outlined.Phone,
                     keyboardOptions = KeyboardOptions(
                         keyboardType = KeyboardType.Phone,
                         imeAction = ImeAction.Next
                     ),
                     keyboardActions = KeyboardActions(
-                        onNext = { focusManager.moveFocus(FocusDirection.Down) }
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Date of birth
-                AuthTextField(
-                    value = dateOfBirth,
-                    onValueChange = { dateOfBirth = it },
-                    label = "Date of Birth (YYYY-MM-DD)",
-                    leadingIcon = Icons.Outlined.CalendarToday,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Text,
-                        imeAction = ImeAction.Done
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = {
+                        onNext = {
                             focusManager.clearFocus()
-                            if (phoneNumber.isNotBlank()) {
-                                viewModel.completeProfile(phoneNumber, dateOfBirth)
-                            }
+                            showDatePicker = true
                         }
                     )
                 )
+
+                if (phoneNumber.isNotBlank() && !isPhoneValid) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Invalid format. Use 7-15 digits (e.g. +1 555-0199)",
+                        color = Color(0xFFFF5252),
+                        fontSize = 12.sp,
+                        modifier = Modifier.fillMaxWidth().padding(start = 8.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Date of birth (Clickable calendar picker)
+                Surface(
+                    onClick = {
+                        focusManager.clearFocus()
+                        showDatePicker = true
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    color = CardBackground,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, if (dateOfBirth.isNotBlank()) PrimaryCyan else DividerColor),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.CalendarToday,
+                            contentDescription = null,
+                            tint = if (dateOfBirth.isNotBlank()) PrimaryCyan else TextSecondary,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Date of Birth",
+                                color = if (dateOfBirth.isNotBlank()) PrimaryCyan else TextSecondary,
+                                fontSize = 12.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = dateOfBirth.ifEmpty { "Select date from calendar" },
+                                color = if (dateOfBirth.isNotBlank()) TextPrimary else TextSecondary,
+                                fontSize = 15.sp,
+                                fontWeight = if (dateOfBirth.isNotBlank()) FontWeight.Medium else FontWeight.Normal
+                            )
+                        }
+                        Text(
+                            text = "Pick",
+                            color = PrimaryCyan,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
 
                 Spacer(modifier = Modifier.height(28.dp))
 
@@ -227,7 +286,7 @@ fun ProfileCompletionScreen(
                         .fillMaxWidth()
                         .height(52.dp),
                     shape = RoundedCornerShape(12.dp),
-                    enabled = !isLoading && phoneNumber.isNotBlank(),
+                    enabled = !isLoading && phoneNumber.isNotBlank() && isPhoneValid && dateOfBirth.isNotBlank(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = PrimaryCyan,
                         disabledContainerColor = PrimaryCyan.copy(alpha = 0.35f)

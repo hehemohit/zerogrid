@@ -32,6 +32,10 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Locale
 
+import com.example.zerogrid.hardware.HardwareStateManager
+import com.example.zerogrid.hardware.WifiRequiredDialog
+import com.example.zerogrid.mesh.engine.MeshNode
+
 /**
  * Per-peer direct message chat screen.
  * Shows persistent conversation history (survives reconnections) and live incoming messages.
@@ -48,8 +52,18 @@ fun PeerDirectChatScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     var messageText by remember { mutableStateOf("") }
+    var selectedTransport by remember { mutableStateOf("Auto") }
+    var showWifiDialog by remember { mutableStateOf(false) }
+
     val conversations by meshEngine.conversations.collectAsState()
     val connectedPeers by meshEngine.connectedPeers.collectAsState()
+
+    if (showWifiDialog) {
+        WifiRequiredDialog(
+            onDismiss = { showWifiDialog = false },
+            onEnableClick = { HardwareStateManager.openWifiSettings(context) }
+        )
+    }
 
     // Live conversation — updates from the StateFlow as new messages arrive/are sent
     val messages = conversations[peerId] ?: emptyList()
@@ -89,13 +103,27 @@ fun PeerDirectChatScreen(
         },
         bottomBar = {
             Column {
+                ChatTransportSelectorRow(
+                    selectedTransport = selectedTransport,
+                    onSelectTransport = { transport ->
+                        if (transport == "Wi-Fi Direct" && !HardwareStateManager.isWifiEnabled(context)) {
+                            showWifiDialog = true
+                        }
+                        selectedTransport = transport
+                    }
+                )
                 PeerChatInputBar(
                     messageText = messageText,
                     onValueChange = { messageText = it },
                     onSend = {
                         val text = messageText.trim()
                         if (text.isNotEmpty()) {
-                            meshEngine.sendDirectMessage(peerId, text)
+                            val preferred = when (selectedTransport) {
+                                "BLE" -> MeshNode.TRANSPORT_BLE
+                                "Wi-Fi Direct" -> MeshNode.TRANSPORT_WIFI_DIRECT
+                                else -> null
+                            }
+                            meshEngine.sendDirectMessage(peerId, text, preferred)
                             messageText = ""
                         }
                     },
@@ -567,6 +595,66 @@ private fun PeerChatInputBar(
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace
             )
+        }
+    }
+}
+
+@Composable
+private fun ChatTransportSelectorRow(
+    selectedTransport: String,
+    onSelectTransport: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(DarkBackground)
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "VIA:",
+            color = TextSecondary,
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            fontWeight = FontWeight.Bold
+        )
+
+        val options = listOf(
+            Triple("Auto", "Auto (Optimal)", Icons.Outlined.AutoMode),
+            Triple("BLE", "BLE Only", Icons.Outlined.Bluetooth),
+            Triple("Wi-Fi Direct", "Wi-Fi Direct", Icons.Outlined.Wifi)
+        )
+
+        options.forEach { (id, label, icon) ->
+            val isSelected = selectedTransport == id
+            val chipBg = if (isSelected) StatusActive.copy(alpha = 0.15f) else CardBackground
+            val chipBorder = if (isSelected) StatusActive else Color.Transparent
+            val contentColor = if (isSelected) StatusActive else TextSecondary
+
+            Row(
+                modifier = Modifier
+                    .background(chipBg, RoundedCornerShape(12.dp))
+                    .border(1.dp, chipBorder, RoundedCornerShape(12.dp))
+                    .clickable { onSelectTransport(id) }
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = label,
+                    tint = contentColor,
+                    modifier = Modifier.size(12.dp)
+                )
+                Text(
+                    text = id,
+                    color = contentColor,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                )
+            }
         }
     }
 }

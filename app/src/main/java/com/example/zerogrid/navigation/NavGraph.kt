@@ -23,6 +23,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.zerogrid.emergency.*
 import com.example.zerogrid.files.*
+import com.example.zerogrid.hardware.HardwareRequirementBanner
 import com.example.zerogrid.home.*
 import com.example.zerogrid.mesh.*
 import com.example.zerogrid.mesh.engine.MeshEngine
@@ -37,7 +38,7 @@ private val SosAmber = Color(0xFFFF9500)
 private val SosCyan = Color(0xFF00E5FF)
 
 @Composable
-fun ZeroGridApp() {
+fun ZeroGridApp(onLogout: () -> Unit = {}) {
     val context = LocalContext.current
     val meshEngine = remember { MeshEngine.getInstance(context) }
 
@@ -79,33 +80,43 @@ fun ZeroGridApp() {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        when (currentScreen) {
-            Screen.HOME -> MeshDashboardScreen(onNavigate = { navigateTo(it) })
-            Screen.MESSAGES -> MessagesScreen(
-                onNavigate = { navigateTo(it) },
-                onOpenPeerChat = { peerId -> openPeerChat(peerId) }
-            )
-            Screen.PEER_DIRECT_CHAT -> PeerDirectChatScreen(
-                peerId = selectedPeerId,
-                onNavigate = { navigateTo(it) }
-            )
-            Screen.MESH -> NearbyDevicesScreen(onNavigate = { navigateTo(it) })
-            Screen.FILES -> FilesScreen(onNavigate = { navigateTo(it) })
-            Screen.SETTINGS -> SettingsScreen(onNavigate = { navigateTo(it) })
-            Screen.SOS_CENTER -> SosCenterScreen(onNavigate = { navigateTo(it) })
-            Screen.SEND_SOS -> SendSosScreen(onNavigate = { navigateTo(it) })
-            Screen.SEND_FILE -> SendFileScreen(onNavigate = { navigateTo(it) })
-            Screen.FILE_TRANSFER -> FileTransferScreen(onNavigate = { navigateTo(it) })
-            Screen.PEER_DETAILS -> PeerDetailsScreen(onNavigate = { navigateTo(it) })
-            Screen.CHANNELS -> ChannelsScreen(onNavigate = { navigateTo(it) })
-            Screen.CHAT_DETAIL -> ChatDetailScreen(onNavigate = { navigateTo(it) })
-            Screen.SPLASH -> SplashScreen(onNavigate = { navigateTo(it) })
-            Screen.ONBOARDING -> OnBoardingScreen(onNavigate = { navigateTo(it) })
-            Screen.PERMISSIONS -> PermissionsScreen(onNavigate = { navigateTo(it) })
-            Screen.CREATE_IDENTITY -> CreateIdentityScreen(onNavigate = { navigateTo(it) })
-            Screen.NETWORK_STATUS -> NetworkStatusScreen(onNavigate = { navigateTo(it) })
-            Screen.SECURITY_PRIVACY -> SecurityPrivacyScreen(onNavigate = { navigateTo(it) })
-            Screen.DEBUG_CONSOLE -> DebugConsoleScreen(onNavigate = { navigateTo(it) })
+        Column(modifier = Modifier.fillMaxSize()) {
+            HardwareRequirementBanner()
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                when (currentScreen) {
+                    Screen.HOME -> MeshDashboardScreen(onNavigate = { navigateTo(it) })
+                    Screen.MESSAGES -> MessagesScreen(
+                        onNavigate = { navigateTo(it) },
+                        onOpenPeerChat = { peerId -> openPeerChat(peerId) }
+                    )
+                    Screen.PEER_DIRECT_CHAT -> PeerDirectChatScreen(
+                        peerId = selectedPeerId,
+                        onNavigate = { navigateTo(it) }
+                    )
+                    Screen.MESH -> NearbyDevicesScreen(onNavigate = { navigateTo(it) })
+                    Screen.FILES -> FilesScreen(onNavigate = { navigateTo(it) })
+                    Screen.SETTINGS -> SettingsScreen(onNavigate = { navigateTo(it) }, onLogout = onLogout)
+                    Screen.SOS_CENTER -> SosCenterScreen(onNavigate = { navigateTo(it) })
+                    Screen.SEND_SOS -> SendSosScreen(onNavigate = { navigateTo(it) })
+                    Screen.SEND_FILE -> SendFileScreen(onNavigate = { navigateTo(it) })
+                    Screen.FILE_TRANSFER -> FileTransferScreen(onNavigate = { navigateTo(it) })
+                    Screen.PEER_DETAILS -> PeerDetailsScreen(onNavigate = { navigateTo(it) })
+                    Screen.CHANNELS -> ChannelsScreen(onNavigate = { navigateTo(it) })
+                    Screen.CHAT_DETAIL -> ChatDetailScreen(onNavigate = { navigateTo(it) })
+                    Screen.SPLASH -> SplashScreen(onNavigate = { navigateTo(it) })
+                    Screen.ONBOARDING -> OnBoardingScreen(onNavigate = { navigateTo(it) })
+                    Screen.PERMISSIONS -> PermissionsScreen(onNavigate = { navigateTo(it) })
+                    Screen.CREATE_IDENTITY -> CreateIdentityScreen(onNavigate = { navigateTo(it) })
+                    Screen.NETWORK_STATUS -> NetworkStatusScreen(onNavigate = { navigateTo(it) })
+                    Screen.SECURITY_PRIVACY -> SecurityPrivacyScreen(onNavigate = { navigateTo(it) })
+                    Screen.DEBUG_CONSOLE -> DebugConsoleScreen(onNavigate = { navigateTo(it) })
+                }
+            }
         }
 
 

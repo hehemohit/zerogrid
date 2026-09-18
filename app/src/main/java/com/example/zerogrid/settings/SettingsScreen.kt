@@ -9,12 +9,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ExitToApp
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -22,13 +25,119 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.zerogrid.navigation.*
 import com.example.zerogrid.ui.theme.*
+import com.zerogrid.mesh.app.ui.UserRole
+import com.zerogrid.mesh.app.ui.UserSessionManager
+
+private val DangerRed = Color(0xFFFF3B30)
+private val AdminAmber = Color(0xFFFF9500)
 
 @Composable
-fun SettingsScreen(onNavigate: (Screen) -> Unit = {}) {
+fun SettingsScreen(
+    onNavigate: (Screen) -> Unit = {},
+    onLogout: () -> Unit = {}
+) {
+    val context = LocalContext.current
+    val sessionManager = remember { UserSessionManager.getInstance(context) }
+
     var meshDiscoveryEnabled by remember { mutableStateOf(true) }
     var automaticSwitchingEnabled by remember { mutableStateOf(true) }
     var relayModeEnabled by remember { mutableStateOf(true) }
     var emergencyAlertsEnabled by remember { mutableStateOf(true) }
+
+    // Edit name dialog state
+    var showEditNameDialog by remember { mutableStateOf(false) }
+    var editNameValue by remember { mutableStateOf(sessionManager.getUserName()) }
+    var displayName by remember { mutableStateOf(sessionManager.getUserName()) }
+
+    // Logout confirm dialog
+    var showLogoutDialog by remember { mutableStateOf(false) }
+
+    // ── Edit Name Dialog ─────────────────────────────────────────────────
+    if (showEditNameDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditNameDialog = false },
+            containerColor = CardBackground,
+            title = {
+                Text("Edit Display Name", color = TextPrimary, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = editNameValue,
+                        onValueChange = { editNameValue = it },
+                        label = { Text("Display Name", color = TextSecondary) },
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary,
+                            focusedContainerColor = SurfaceDarker,
+                            unfocusedContainerColor = SurfaceDarker,
+                            focusedBorderColor = PrimaryCyan,
+                            unfocusedBorderColor = DividerColor,
+                            focusedLabelColor = PrimaryCyan
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Display name updated locally. Server sync coming soon.",
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val trimmed = editNameValue.trim()
+                    if (trimmed.isNotEmpty()) {
+                        sessionManager.setUserName(trimmed)
+                        displayName = trimmed
+                    }
+                    showEditNameDialog = false
+                }) {
+                    Text("Save", color = PrimaryCyan, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditNameDialog = false }) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
+    }
+
+    // ── Logout Confirm Dialog ────────────────────────────────────────────
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            containerColor = CardBackground,
+            title = {
+                Text("Sign Out", color = TextPrimary, fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Text(
+                    "Are you sure you want to sign out? You will need to log in again to access ZeroGrid.",
+                    color = TextSecondary,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showLogoutDialog = false
+                    sessionManager.clearSession()
+                    onLogout()
+                }) {
+                    Text("Sign Out", color = DangerRed, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) {
+                    Text("Cancel", color = TextSecondary)
+                }
+            }
+        )
+    }
 
     Scaffold(
         containerColor = DarkBackground,
@@ -44,11 +153,70 @@ fun SettingsScreen(onNavigate: (Screen) -> Unit = {}) {
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // User Profile Card
-            UserProfileCard()
+            // ── Profile Card ─────────────────────────────────────────────
+            ProfileCard(
+                sessionManager = sessionManager,
+                displayName = displayName,
+                onEditClick = {
+                    editNameValue = displayName
+                    showEditNameDialog = true
+                }
+            )
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Network Section
+            // ── Account Section ───────────────────────────────────────────
+            Text(
+                text = "ACCOUNT",
+                color = TextSecondary,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = CardBackground),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, DividerColor)
+            ) {
+                Column {
+                    // Edit display name row
+                    Surface(
+                        onClick = { editNameValue = displayName; showEditNameDialog = true },
+                        color = Color.Transparent
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Edit Display Name", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                                Text(displayName.ifEmpty { "—" }, color = TextSecondary, fontSize = 13.sp)
+                            }
+                            Icon(Icons.Outlined.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                    HorizontalDivider(color = DividerColor)
+                    // Account type
+                    AccountInfoRow("Account Type", "STANDARD")
+                    HorizontalDivider(color = DividerColor)
+                    // Member since
+                    AccountInfoRow("Member Since", "Sep 2026")
+                    HorizontalDivider(color = DividerColor)
+                    // Server User ID
+                    AccountInfoRow(
+                        "Server User ID",
+                        "••••${sessionManager.getUserId()?.takeLast(8) ?: "--------"}"
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            // ── Network Section ───────────────────────────────────────────
             Text(
                 text = "NETWORK",
                 color = TextSecondary,
@@ -64,26 +232,22 @@ fun SettingsScreen(onNavigate: (Screen) -> Unit = {}) {
                 border = BorderStroke(1.dp, DividerColor)
             ) {
                 Column {
-                    SettingsNavigationRow(
-                        title = "Network Mode",
-                        subtitle = "Automatic",
-                        onClick = { }
-                    )
-                    HorizontalDivider(color = DividerColor, thickness = 1.dp)
+                    SettingsNavigationRow(title = "Network Mode", subtitle = "Automatic", onClick = { })
+                    HorizontalDivider(color = DividerColor)
                     SettingsSwitchRow(
                         title = "Mesh Discovery",
                         subtitle = "Active",
                         checked = meshDiscoveryEnabled,
                         onCheckedChange = { meshDiscoveryEnabled = it }
                     )
-                    HorizontalDivider(color = DividerColor, thickness = 1.dp)
+                    HorizontalDivider(color = DividerColor)
                     SettingsSwitchRow(
                         title = "Automatic Switching",
                         subtitle = "LAN ↔ Wi-Fi Direct",
                         checked = automaticSwitchingEnabled,
                         onCheckedChange = { automaticSwitchingEnabled = it }
                     )
-                    HorizontalDivider(color = DividerColor, thickness = 1.dp)
+                    HorizontalDivider(color = DividerColor)
                     SettingsSwitchRow(
                         title = "Relay Mode",
                         subtitle = "Forward encrypted traffic",
@@ -94,7 +258,7 @@ fun SettingsScreen(onNavigate: (Screen) -> Unit = {}) {
             }
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Communication Section
+            // ── Communication Section ─────────────────────────────────────
             Text(
                 text = "COMMUNICATION",
                 color = TextSecondary,
@@ -110,18 +274,14 @@ fun SettingsScreen(onNavigate: (Screen) -> Unit = {}) {
                 border = BorderStroke(1.dp, DividerColor)
             ) {
                 Column {
-                    SettingsNavigationRow(
-                        title = "Notifications",
-                        subtitle = "Enabled",
-                        onClick = { }
-                    )
-                    HorizontalDivider(color = DividerColor, thickness = 1.dp)
+                    SettingsNavigationRow(title = "Notifications", subtitle = "Enabled", onClick = { })
+                    HorizontalDivider(color = DividerColor)
                     SettingsNavigationRow(
                         title = "Security & Privacy",
                         subtitle = "Keys, E2EE, Anonymity",
                         onClick = { onNavigate(Screen.SECURITY_PRIVACY) }
                     )
-                    HorizontalDivider(color = DividerColor, thickness = 1.dp)
+                    HorizontalDivider(color = DividerColor)
                     SettingsSwitchRow(
                         title = "Emergency Alerts",
                         subtitle = "Enabled",
@@ -132,7 +292,8 @@ fun SettingsScreen(onNavigate: (Screen) -> Unit = {}) {
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-            // ── DEBUG SECTION ───────────────────────────────────────────────
+
+            // ── Developer Section ─────────────────────────────────────────
             Text(
                 text = "DEVELOPER",
                 color = TextSecondary,
@@ -160,59 +321,81 @@ fun SettingsScreen(onNavigate: (Screen) -> Unit = {}) {
                             .background(Color(0xFF1A1A2E), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.BugReport,
-                            contentDescription = null,
-                            tint = Color(0xFF82B1FF),
-                            modifier = Modifier.size(22.dp)
-                        )
+                        Icon(Icons.Outlined.BugReport, null, tint = Color(0xFF82B1FF), modifier = Modifier.size(22.dp))
                     }
                     Spacer(modifier = Modifier.width(14.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Debug Console", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                        Spacer(modifier = Modifier.height(2.dp))
                         Text("Live BLE trace, MTU, packet log", color = TextSecondary, fontSize = 12.sp)
                     }
-                    Icon(imageVector = Icons.Outlined.ChevronRight, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(20.dp))
+                    Icon(Icons.Outlined.ChevronRight, null, tint = TextSecondary, modifier = Modifier.size(20.dp))
                 }
             }
 
-            Spacer(modifier = Modifier.height(80.dp)) // Padding for bottom nav
-        }
-    }
-}
+            Spacer(modifier = Modifier.height(24.dp))
 
-@Composable
-private fun SettingsTopBar() {
-    Column {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+            // ── Danger Zone ───────────────────────────────────────────────
             Text(
-                text = "Settings",
-                color = TextPrimary,
-                fontSize = 24.sp,
+                text = "DANGER ZONE",
+                color = DangerRed.copy(alpha = 0.7f),
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold
             )
-            Icon(
-                imageVector = Icons.Outlined.Security,
-                contentDescription = "Security",
-                tint = TextPrimary,
-                modifier = Modifier.size(24.dp)
-            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = CardBackground),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, DangerRed.copy(alpha = 0.2f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { showLogoutDialog = true }
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(DangerRed.copy(alpha = 0.1f), RoundedCornerShape(10.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.AutoMirrored.Outlined.ExitToApp, null, tint = DangerRed, modifier = Modifier.size(22.dp))
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Sign Out", color = DangerRed, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Text("Clear session and return to login", color = TextSecondary, fontSize = 12.sp)
+                    }
+                    Icon(Icons.Outlined.ChevronRight, null, tint = DangerRed.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
+                }
+            }
+
+            Spacer(modifier = Modifier.height(80.dp))
         }
-        HorizontalDivider(color = DividerColor, thickness = 1.dp)
     }
 }
 
+// ── Profile Card ───────────────────────────────────────────────────────────
+
 @Composable
-private fun UserProfileCard() {
+private fun ProfileCard(
+    sessionManager: UserSessionManager,
+    displayName: String,
+    onEditClick: () -> Unit
+) {
+    val email = sessionManager.getUserEmail() ?: ""
+    val role  = sessionManager.getUserRole()
+    val isAdmin = role == UserRole.ADMIN
+    val roleLabel = if (isAdmin) "ADMIN" else "CITIZEN"
+    val roleDot   = if (isAdmin) AdminAmber else StatusActive
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onEditClick() },
         colors = CardDefaults.cardColors(containerColor = CardBackground),
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(1.dp, DividerColor)
@@ -228,97 +411,96 @@ private fun UserProfileCard() {
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.weight(1f)
             ) {
+                // Avatar with initials
                 Box(
                     modifier = Modifier
                         .size(48.dp)
                         .background(SurfaceDarker, RoundedCornerShape(10.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Devices,
-                        contentDescription = null,
-                        tint = StatusActive,
-                        modifier = Modifier.size(24.dp)
+                    Text(
+                        text = displayName.take(2).uppercase().ifEmpty { "ZG" },
+                        color = roleDot,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
                     )
                 }
                 Spacer(modifier = Modifier.width(14.dp))
                 Column {
                     Text(
-                        text = "Alex",
+                        text = displayName.ifEmpty { "Unknown User" },
                         color = TextPrimary,
-                        fontSize = 18.sp,
+                        fontSize = 17.sp,
                         fontWeight = FontWeight.Bold
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "ZeroGrid Device",
-                        color = TextSecondary,
-                        fontSize = 12.sp
-                    )
+                    if (email.isNotEmpty()) {
+                        Text(email, color = TextSecondary, fontSize = 12.sp, modifier = Modifier.padding(top = 1.dp))
+                    }
                     Spacer(modifier = Modifier.height(4.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .background(StatusActive, CircleShape)
-                        )
+                        Box(modifier = Modifier.size(6.dp).background(roleDot, CircleShape))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "Device ID: ZG-7A42-••••",
-                            color = StatusActive,
-                            fontSize = 11.sp,
-                            fontFamily = FontFamily.Monospace
-                        )
+                        Text(roleLabel, color = roleDot, fontSize = 11.sp, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
                     }
                 }
             }
-            Icon(
-                imageVector = Icons.Outlined.ChevronRight,
-                contentDescription = "Navigate",
-                tint = TextSecondary,
-                modifier = Modifier.size(20.dp)
-            )
+            Icon(Icons.Outlined.Edit, "Edit profile", tint = TextSecondary, modifier = Modifier.size(18.dp))
         }
     }
 }
 
+// ── Account Info Row ───────────────────────────────────────────────────────
+
 @Composable
-private fun SettingsNavigationRow(
-    title: String,
-    subtitle: String,
-    onClick: () -> Unit
-) {
-    Surface(
-        onClick = onClick,
-        color = Color.Transparent
+private fun AccountInfoRow(label: String, value: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        Text(label, color = TextSecondary, fontSize = 14.sp)
+        Text(value, color = TextPrimary, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+    }
+}
+
+// ── Top Bar ────────────────────────────────────────────────────────────────
+
+@Composable
+private fun SettingsTopBar() {
+    Column {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(horizontal = 20.dp, vertical = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("Settings", color = TextPrimary, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+            Icon(Icons.Outlined.Security, "Security", tint = TextPrimary, modifier = Modifier.size(24.dp))
+        }
+        HorizontalDivider(color = DividerColor)
+    }
+}
+
+// ── Shared row composables ─────────────────────────────────────────────────
+
+@Composable
+private fun SettingsNavigationRow(title: String, subtitle: String, onClick: () -> Unit) {
+    Surface(onClick = onClick, color = Color.Transparent) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(16.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    color = TextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium
-                )
+                Text(title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                 Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = subtitle,
-                    color = TextSecondary,
-                    fontSize = 13.sp
-                )
+                Text(subtitle, color = TextSecondary, fontSize = 13.sp)
             }
-            Icon(
-                imageVector = Icons.Outlined.ChevronRight,
-                contentDescription = "Navigate",
-                tint = TextSecondary,
-                modifier = Modifier.size(20.dp)
-            )
+            Icon(Icons.Outlined.ChevronRight, "Navigate", tint = TextSecondary, modifier = Modifier.size(20.dp))
         }
     }
 }
@@ -331,25 +513,14 @@ private fun SettingsSwitchRow(
     onCheckedChange: (Boolean) -> Unit
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                color = TextPrimary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium
-            )
+            Text(title, color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
             Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = subtitle,
-                color = TextSecondary,
-                fontSize = 13.sp
-            )
+            Text(subtitle, color = TextSecondary, fontSize = 13.sp)
         }
         Switch(
             checked = checked,
@@ -365,15 +536,11 @@ private fun SettingsSwitchRow(
     }
 }
 
-
-
 @Composable
 fun ZeroGridSettingsScreen() = SettingsScreen()
 
 @Preview(showBackground = true)
 @Composable
 fun ZeroGridSettingsPreview() {
-    ZeroGridTheme {
-        ZeroGridSettingsScreen()
-    }
+    ZeroGridTheme { ZeroGridSettingsScreen() }
 }

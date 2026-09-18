@@ -240,7 +240,7 @@ fun NameEntryScreen(
                     }
                     // Persist to session and mesh engine
                     sessionManager.setUserName(trimmed)
-                    sessionManager.setUserRole(if (isAuthority) UserRole.AUTHORITY else UserRole.CITIZEN)
+                    sessionManager.setUserRole(if (isAuthority) UserRole.ADMIN else UserRole.CITIZEN)
                     meshEngine.setDisplayName(trimmed)
 
                     onNameConfirmed(trimmed)

@@ -129,16 +129,34 @@ class MeshRoutingEngine(
         return false
     }
 
-    fun sendOutboundPacket(packet: MeshPacket): Boolean {
+    fun sendOutboundPacket(packet: MeshPacket, preferredTransport: String? = null): Boolean {
         // Record local packet in deduplication cache to prevent re-processing if it returns
         deduplicationCache.isDuplicateAndRecord(packet.packetId)
 
-        Log.d(TAG, "Sending outbound packet ${packet.packetId} (Type: ${packet.type}) to ${packet.recipientId}")
-        DebugLogger.log(TAG, "📤 Outbound ${packet.type} to ${packet.recipientId}", DebugLevel.DEBUG)
+        Log.d(TAG, "Sending outbound packet ${packet.packetId} (Type: ${packet.type}, Preferred: $preferredTransport) to ${packet.recipientId}")
+        DebugLogger.log(TAG, "📤 Outbound ${packet.type} to ${packet.recipientId} (Pref: $preferredTransport)", DebugLevel.DEBUG)
 
         val isBroadcast = packet.recipientId == MeshPacket.BROADCAST_ADDRESS || packet.recipientId == "*"
 
-        // Dynamic multi-interface evaluation for direct unicast packets
+        // If an explicit transport was chosen (BLE or Wi-Fi Direct), target that specific transport driver
+        if (!preferredTransport.isNullOrBlank()) {
+            val targetedTransport = activeTransports.firstOrNull { it.transportName.equals(preferredTransport, ignoreCase = true) && it.isRunning }
+            if (targetedTransport != null) {
+                val sent = if (isBroadcast) targetedTransport.sendPacket(packet) else targetedTransport.sendPacket(packet, packet.recipientId)
+                if (sent) {
+                    Log.d(TAG, "Successfully sent packet ${packet.packetId} via explicit transport $preferredTransport")
+                    return true
+                } else {
+                    Log.w(TAG, "Failed sending packet ${packet.packetId} via explicit transport $preferredTransport")
+                    return false
+                }
+            } else {
+                Log.w(TAG, "Requested explicit transport $preferredTransport is not running/available")
+                return false
+            }
+        }
+
+        // Dynamic multi-interface evaluation for direct unicast packets (Auto mode)
         if (!isBroadcast) {
             val bestRoute = com.zerogrid.mesh.app.service.MeshPeerResolver.getInstance()
                 .getBestRouteForDevice(packet.recipientId)
@@ -156,8 +174,8 @@ class MeshRoutingEngine(
                 )
 
                 // 1. Send via preferred transport with strongest signal
-                val preferredTransport = activeTransports.firstOrNull { it.transportName == preferredTransportName && it.isRunning }
-                if (preferredTransport != null && preferredTransport.sendPacket(packet, packet.recipientId)) {
+                val transport = activeTransports.firstOrNull { it.transportName == preferredTransportName && it.isRunning }
+                if (transport != null && transport.sendPacket(packet, packet.recipientId)) {
                     Log.d(TAG, "Successfully transmitted packet ${packet.packetId} via preferred $preferredTransportName")
                     return true
                 }

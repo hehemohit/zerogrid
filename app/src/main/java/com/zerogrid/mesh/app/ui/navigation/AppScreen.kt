@@ -1,11 +1,12 @@
 package com.zerogrid.mesh.app.ui.navigation
 
 /**
- * App navigation states for role selection, identity setup, and role-specific dashboards.
+ * App navigation states.
+ * Login/Register handle auth; UserDashboard enters the mesh app; AdminPanel is the admin-only area.
  */
 sealed class AppScreen {
-    object RoleSelection : AppScreen()
-    data class NameEntry(val isAuthority: Boolean) : AppScreen()
+    object Login         : AppScreen()
+    object Register      : AppScreen()
     object UserDashboard : AppScreen()
-    object AuthorityDashboard : AppScreen()
+    object AdminPanel    : AppScreen()
 }

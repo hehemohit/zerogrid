@@ -17,7 +17,7 @@ enum class AppRoute {
  */
 enum class UserRole {
     CITIZEN,
-    AUTHORITY
+    ADMIN
 }
 
 /**
@@ -30,6 +30,9 @@ class UserSessionManager(context: Context) {
         private const val PREFS_NAME = "zerogrid_role_session"
         private const val KEY_USER_NAME = "saved_user_name"
         private const val KEY_USER_ROLE = "saved_user_role"
+        private const val KEY_AUTH_TOKEN = "auth_token"
+        private const val KEY_USER_ID = "user_id"
+        private const val KEY_USER_EMAIL = "user_email"
 
         @Volatile
         private var INSTANCE: UserSessionManager? = null
@@ -68,6 +71,19 @@ class UserSessionManager(context: Context) {
             prefs.edit().putString(KEY_USER_ROLE, role.name).apply()
         }
     }
+
+    // ── Auth token & server identity ───────────────────────────────────────
+
+    fun getAuthToken(): String? = prefs.getString(KEY_AUTH_TOKEN, null)
+    fun setAuthToken(token: String) = prefs.edit().putString(KEY_AUTH_TOKEN, token).apply()
+
+    fun getUserId(): String? = prefs.getString(KEY_USER_ID, null)
+    fun setUserId(id: String) = prefs.edit().putString(KEY_USER_ID, id).apply()
+
+    fun getUserEmail(): String? = prefs.getString(KEY_USER_EMAIL, null)
+    fun setUserEmail(email: String) = prefs.edit().putString(KEY_USER_EMAIL, email).apply()
+
+    fun isLoggedIn(): Boolean = !getAuthToken().isNullOrEmpty()
 
     fun clearSession() {
         prefs.edit().clear().apply()

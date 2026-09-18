@@ -271,7 +271,7 @@ class MeshEngine private constructor(private val context: Context) {
      * Always attempts immediate delivery over the optimal active interface (BLE or Wi-Fi).
      * If sending succeeds or the peer is reachable, marks as SENT; only if unreachable is it paused in pipeline.
      */
-    fun sendDirectMessage(recipientId: String, text: String): MeshPacket {
+    fun sendDirectMessage(recipientId: String, text: String, preferredTransport: String? = null): MeshPacket {
         val packet = MeshPacket(
             senderId = localNodeId,
             recipientId = recipientId,
@@ -279,8 +279,8 @@ class MeshEngine private constructor(private val context: Context) {
             payload = text,
         )
 
-        // Attempt transmission over active interfaces
-        val sent = routingEngine.sendOutboundPacket(packet)
+        // Attempt transmission over active interfaces (or targeted transport if specified)
+        val sent = routingEngine.sendOutboundPacket(packet, preferredTransport)
         val isOnline = sent || isPeerOnline(recipientId)
         val status = if (sent) MessageStatus.SENT else (if (isOnline) MessageStatus.SENT else MessageStatus.PAUSED)
 
@@ -366,7 +366,7 @@ class MeshEngine private constructor(private val context: Context) {
         }
     }
 
-    fun broadcastChannelMessage(channelName: String, text: String): MeshPacket {
+    fun broadcastChannelMessage(channelName: String, text: String, preferredTransport: String? = null): MeshPacket {
         val payload = "[$channelName] $text"
         val packet = MeshPacket(
             senderId = localNodeId,
@@ -374,11 +374,17 @@ class MeshEngine private constructor(private val context: Context) {
             type = PacketType.CHANNEL_BROADCAST,
             payload = payload,
         )
-        routingEngine.sendOutboundPacket(packet)
+        routingEngine.sendOutboundPacket(packet, preferredTransport)
         return packet
     }
 
-    fun triggerSosBeacon(category: String, message: String, lat: Double? = null, lon: Double? = null): MeshPacket {
+    fun triggerSosBeacon(
+        category: String,
+        message: String,
+        lat: Double? = null,
+        lon: Double? = null,
+        preferredTransport: String? = null
+    ): MeshPacket {
         val payload = "Category: $category | Msg: $message | Lat: ${lat ?: 0.0}, Lon: ${lon ?: 0.0}"
         val packet = MeshPacket(
             senderId = localNodeId,
@@ -387,8 +393,8 @@ class MeshEngine private constructor(private val context: Context) {
             type = PacketType.SOS_BEACON,
             payload = payload,
         )
-        // Transmit to all mesh peers via transports
-        routingEngine.sendOutboundPacket(packet)
+        // Transmit to mesh peers via active transports (or targeted transport)
+        routingEngine.sendOutboundPacket(packet, preferredTransport)
         // Add to local sosAlerts for display on THIS device's SOS center
         val current = _sosAlerts.value.toMutableList()
         if (current.none { it.packetId == packet.packetId }) {

@@ -3,6 +3,7 @@ package com.example.zerogrid.emergency
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -23,16 +24,29 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
+import com.example.zerogrid.hardware.HardwareStateManager
+import com.example.zerogrid.hardware.WifiRequiredDialog
 import com.example.zerogrid.mesh.engine.MeshEngine
+import com.example.zerogrid.mesh.engine.MeshNode
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.ui.theme.*
 
 @Composable
 fun SendSosScreen(onNavigate: (Screen) -> Unit = {}) {
-    val meshEngine = MeshEngine.getInstance(LocalContext.current)
+    val context = LocalContext.current
+    val meshEngine = MeshEngine.getInstance(context)
     var selectedType by remember { mutableStateOf("Medical") }
     var emergencyMessage by remember { mutableStateOf("") }
     var locationSharingEnabled by remember { mutableStateOf(true) }
+    var selectedTransport by remember { mutableStateOf("Both") }
+    var showWifiDialog by remember { mutableStateOf(false) }
+
+    if (showWifiDialog) {
+        WifiRequiredDialog(
+            onDismiss = { showWifiDialog = false },
+            onEnableClick = { HardwareStateManager.openWifiSettings(context) }
+        )
+    }
 
     Scaffold(
         containerColor = DarkBackground,
@@ -140,16 +154,42 @@ fun SendSosScreen(onNavigate: (Screen) -> Unit = {}) {
                 fontSize = 11.sp,
                 lineHeight = 16.sp
             )
+            Spacer(modifier = Modifier.height(20.dp))
+
+            // Emergency Transport Section
+            Text(
+                text = "EMERGENCY TRANSPORT",
+                color = TextSecondary,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            SosTransportSelectorCard(
+                selectedTransport = selectedTransport,
+                onSelectTransport = { transport ->
+                    if (transport == "Wi-Fi Direct Only" && !HardwareStateManager.isWifiEnabled(context)) {
+                        showWifiDialog = true
+                    }
+                    selectedTransport = transport
+                }
+            )
             Spacer(modifier = Modifier.height(24.dp))
 
             // Broadcast SOS Action Button
             Button(
                 onClick = {
+                    val preferred = when (selectedTransport) {
+                        "BLE Only" -> MeshNode.TRANSPORT_BLE
+                        "Wi-Fi Direct Only" -> MeshNode.TRANSPORT_WIFI_DIRECT
+                        else -> null
+                    }
                     meshEngine.triggerSosBeacon(
                         category = selectedType,
                         message = emergencyMessage,
                         lat = if (locationSharingEnabled) 0.0 else null, // Placeholder coordinates
-                        lon = if (locationSharingEnabled) 0.0 else null
+                        lon = if (locationSharingEnabled) 0.0 else null,
+                        preferredTransport = preferred
                     )
                     onNavigate(Screen.SOS_CENTER)
                 },
@@ -571,6 +611,69 @@ private fun AttachButton(modifier: Modifier = Modifier, icon: ImageVector, label
                 fontSize = 14.sp,
                 fontWeight = FontWeight.Medium
             )
+        }
+    }
+}
+
+@Composable
+private fun SosTransportSelectorCard(
+    selectedTransport: String,
+    onSelectTransport: (String) -> Unit
+) {
+    val options = listOf(
+        Triple("Both", "Both (BLE + Wi-Fi Direct)", "Maximum reach across all nearby mesh nodes"),
+        Triple("BLE Only", "BLE Only", "Low power mesh beacon for battery conservation"),
+        Triple("Wi-Fi Direct Only", "Wi-Fi Direct Only", "High bandwidth broadcast to local Wi-Fi cluster")
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(CardBackground, RoundedCornerShape(16.dp))
+            .border(1.dp, DividerColor, RoundedCornerShape(16.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        options.forEach { (id, title, desc) ->
+            val isSelected = selectedTransport == id
+            val itemBg = if (isSelected) StatusActive.copy(alpha = 0.12f) else SurfaceDarker
+            val itemBorder = if (isSelected) StatusActive else Color.Transparent
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(itemBg, RoundedCornerShape(12.dp))
+                    .border(1.dp, itemBorder, RoundedCornerShape(12.dp))
+                    .clickable { onSelectTransport(id) }
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(
+                    selected = isSelected,
+                    onClick = { onSelectTransport(id) },
+                    colors = RadioButtonDefaults.colors(
+                        selectedColor = StatusActive,
+                        unselectedColor = TextSecondary
+                    )
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        color = if (isSelected) StatusActive else TextPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = desc,
+                        color = TextSecondary,
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp
+                    )
+                }
+            }
         }
     }
 }

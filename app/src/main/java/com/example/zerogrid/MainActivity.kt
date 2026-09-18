@@ -16,87 +16,106 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import com.example.zerogrid.admin.AdminPanelScreen
+import com.example.zerogrid.auth.LoginScreen
+import com.example.zerogrid.auth.RegisterScreen
 import com.example.zerogrid.navigation.ZeroGridApp
 import com.example.zerogrid.service.MeshForegroundService
 import com.example.zerogrid.ui.theme.ZeroGridTheme
-import com.zerogrid.mesh.app.ui.*
+import com.zerogrid.mesh.app.ui.UserRole
+import com.zerogrid.mesh.app.ui.UserSessionManager
 import com.zerogrid.mesh.app.ui.navigation.AppScreen
+
+// ── Main App Gateway ───────────────────────────────────────────────────────
 
 @Composable
 fun MainAppGateway() {
     val context = LocalContext.current
     val sessionManager = remember { UserSessionManager.getInstance(context) }
 
-    var currentScreen by remember { mutableStateOf<AppScreen>(AppScreen.RoleSelection) }
-    var currentUserName by remember { mutableStateOf(sessionManager.getUserName()) }
-    var showFullMeshApp by remember { mutableStateOf(false) }
-
-    // Hardware and gesture back handling
-    BackHandler(enabled = (currentScreen != AppScreen.RoleSelection || showFullMeshApp)) {
-        if (showFullMeshApp) {
-            showFullMeshApp = false
-        } else {
-            when (currentScreen) {
-                is AppScreen.NameEntry -> currentScreen = AppScreen.RoleSelection
-                AppScreen.UserDashboard -> currentScreen = AppScreen.RoleSelection
-                AppScreen.AuthorityDashboard -> currentScreen = AppScreen.RoleSelection
-                AppScreen.RoleSelection -> { /* At root */ }
+    // Determine starting screen: auto-login if a token is already stored
+    val startScreen = remember {
+        if (sessionManager.isLoggedIn()) {
+            when (sessionManager.getUserRole()) {
+                UserRole.ADMIN   -> AppScreen.AdminPanel
+                UserRole.CITIZEN -> AppScreen.UserDashboard
+                null             -> AppScreen.Login
             }
+        } else {
+            AppScreen.Login
         }
     }
 
-    if (showFullMeshApp) {
-        ZeroGridApp()
-    } else {
-        when (val screen = currentScreen) {
-            AppScreen.RoleSelection -> {
-                RoleSelectionScreen(
-                    onSelectRole = { isAuthority ->
-                        currentScreen = AppScreen.NameEntry(isAuthority = isAuthority)
-                    }
-                )
-            }
-            is AppScreen.NameEntry -> {
-                NameEntryScreen(
-                    isAuthority = screen.isAuthority,
-                    onNameConfirmed = { name ->
-                        currentUserName = name
-                        currentScreen = if (screen.isAuthority) {
-                            AppScreen.AuthorityDashboard
-                        } else {
-                            AppScreen.UserDashboard
-                        }
-                    },
-                    onBack = {
-                        currentScreen = AppScreen.RoleSelection
-                    }
-                )
-            }
-            AppScreen.UserDashboard -> {
-                UserDashboardScreen(
-                    userName = currentUserName,
-                    onBackToRoles = {
-                        currentScreen = AppScreen.RoleSelection
-                    },
-                    onOpenFullMeshApp = {
-                        showFullMeshApp = true
-                    }
-                )
-            }
-            AppScreen.AuthorityDashboard -> {
-                AuthorityDashboardScreen(
-                    userName = currentUserName,
-                    onBackToRoles = {
-                        currentScreen = AppScreen.RoleSelection
-                    },
-                    onOpenFullMeshApp = {
-                        showFullMeshApp = true
-                    }
-                )
-            }
+    var currentScreen by remember { mutableStateOf<AppScreen>(startScreen) }
+
+    fun logout() {
+        Log.d("MainAppGateway", "User logged out. Stopping mesh service.")
+        try {
+            MeshForegroundService.stopService(context)
+            com.example.zerogrid.mesh.engine.MeshEngine.getInstance(context).stopMesh()
+        } catch (e: Exception) {
+            Log.e("MainAppGateway", "Error stopping mesh service on logout", e)
+        }
+        sessionManager.clearSession()
+        currentScreen = AppScreen.Login
+    }
+
+    // Start mesh service once and only once when the user enters an authenticated dashboard
+    LaunchedEffect(currentScreen) {
+        val isAuthenticated = currentScreen == AppScreen.UserDashboard || currentScreen == AppScreen.AdminPanel
+        if (isAuthenticated && sessionManager.isLoggedIn()) {
+            Log.d("MainAppGateway", "Authenticated screen active ($currentScreen). Starting mesh service.")
+            MeshForegroundService.startService(context)
+        }
+    }
+
+    // Back-handling: only block back on screens where it makes sense
+    BackHandler(enabled = currentScreen == AppScreen.Register) {
+        currentScreen = AppScreen.Login
+    }
+
+    when (currentScreen) {
+
+        // ── Auth screens ───────────────────────────────────────────────
+        AppScreen.Login -> {
+            LoginScreen(
+                sessionManager = sessionManager,
+                onNavigateToRegister = { currentScreen = AppScreen.Register },
+                onLoginSuccess = { role ->
+                    currentScreen = if (role == UserRole.ADMIN) AppScreen.AdminPanel
+                                   else AppScreen.UserDashboard
+                }
+            )
+        }
+
+        AppScreen.Register -> {
+            RegisterScreen(
+                sessionManager = sessionManager,
+                onNavigateToLogin = { currentScreen = AppScreen.Login },
+                onRegisterSuccess = { role ->
+                    currentScreen = if (role == UserRole.ADMIN) AppScreen.AdminPanel
+                                   else AppScreen.UserDashboard
+                }
+            )
+        }
+
+        // ── Citizen: existing mesh app ─────────────────────────────────
+        AppScreen.UserDashboard -> {
+            ZeroGridApp(onLogout = { logout() })
+        }
+
+        // ── Admin: dedicated admin panel ───────────────────────────────
+        AppScreen.AdminPanel -> {
+            AdminPanelScreen(
+                sessionManager = sessionManager,
+                onOpenMeshApp = { currentScreen = AppScreen.UserDashboard },
+                onLogout = { logout() }
+            )
         }
     }
 }
+
+// ── MainActivity ───────────────────────────────────────────────────────────
 
 class MainActivity : ComponentActivity() {
 
@@ -105,12 +124,9 @@ class MainActivity : ComponentActivity() {
     ) { permissions ->
         val allGranted = permissions.entries.all { it.value }
         if (allGranted) {
-            Log.d("MainActivity", "All required permissions granted. Starting mesh service.")
-            MeshForegroundService.startService(this)
+            Log.d("MainActivity", "All required permissions granted.")
         } else {
             Log.w("MainActivity", "Some permissions were denied. Mesh functionality may be limited.")
-            // Still start service, drivers will handle missing permissions gracefully
-            MeshForegroundService.startService(this)
         }
     }
 
@@ -136,15 +152,15 @@ class MainActivity : ComponentActivity() {
 
     private fun checkAndRequestPermissions() {
         val permissions = mutableListOf<String>()
-        
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             permissions.add(Manifest.permission.BLUETOOTH_SCAN)
             permissions.add(Manifest.permission.BLUETOOTH_ADVERTISE)
             permissions.add(Manifest.permission.BLUETOOTH_CONNECT)
         }
-        
+
         permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
-        
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissions.add(Manifest.permission.NEARBY_WIFI_DEVICES)
             permissions.add(Manifest.permission.POST_NOTIFICATIONS)
@@ -158,8 +174,7 @@ class MainActivity : ComponentActivity() {
             Log.d("MainActivity", "Requesting missing permissions: $missingPermissions")
             requestPermissionLauncher.launch(missingPermissions.toTypedArray())
         } else {
-            Log.d("MainActivity", "All permissions already granted. Starting mesh service.")
-            MeshForegroundService.startService(this)
+            Log.d("MainActivity", "All required permissions already granted.")
         }
     }
 }

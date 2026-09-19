@@ -1,9 +1,14 @@
 package com.example.zerogrid.onboarding
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.*
@@ -11,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -49,14 +55,15 @@ fun SplashScreen(onNavigate: (Screen) -> Unit = {}) {
             Box(
                 modifier = Modifier
                     .size(96.dp)
-                    .background(SurfaceDarker, CircleShape),
+                    .background(Color(0xFF0D1C18), RoundedCornerShape(24.dp))
+                    .border(1.5.dp, StatusActive.copy(alpha = 0.5f), RoundedCornerShape(24.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.Share,
-                    contentDescription = "ZeroGrid Logo",
+                    painter = painterResource(id = com.example.zerogrid.R.drawable.ic_mesh_logo),
+                    contentDescription = "ZeroGrid Mesh Emblem",
                     tint = StatusActive,
-                    modifier = Modifier.size(52.dp)
+                    modifier = Modifier.size(56.dp)
                 )
             }
 

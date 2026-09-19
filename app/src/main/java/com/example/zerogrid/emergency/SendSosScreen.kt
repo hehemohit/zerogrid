@@ -224,7 +224,12 @@ fun SendSosScreen(onNavigate: (Screen) -> Unit = {}) {
 
 @Composable
 private fun SendSosTopBar(onBackClick: () -> Unit = {}) {
-    Column {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(DarkBackground)
+            .statusBarsPadding()
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()

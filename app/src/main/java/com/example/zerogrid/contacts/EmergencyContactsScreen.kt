@@ -128,7 +128,12 @@ fun EmergencyContactsScreen(
         containerColor = DarkBackground,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            Column {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(DarkBackground)
+                    .statusBarsPadding()
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()

@@ -84,7 +84,12 @@ fun NearbyDevicesScreen(
 
 @Composable
 private fun NearbyTopBar(onBackClick: () -> Unit = {}) {
-    Column {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(DarkBackground)
+            .statusBarsPadding()
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()

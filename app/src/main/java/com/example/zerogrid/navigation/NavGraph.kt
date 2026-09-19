@@ -89,7 +89,10 @@ fun ZeroGridApp(onLogout: () -> Unit = {}) {
                     .fillMaxWidth()
             ) {
                 when (currentScreen) {
-                    Screen.HOME -> MeshDashboardScreen(onNavigate = { navigateTo(it) })
+                    Screen.HOME -> MeshDashboardScreen(
+                        onNavigate = { navigateTo(it) },
+                        onOpenPeerChat = { peerId -> openPeerChat(peerId) }
+                    )
                     Screen.MESSAGES -> MessagesScreen(
                         onNavigate = { navigateTo(it) },
                         onOpenPeerChat = { peerId -> openPeerChat(peerId) }
@@ -131,6 +134,11 @@ fun ZeroGridApp(onLogout: () -> Unit = {}) {
                     Screen.EMERGENCY_CONTACTS -> com.example.zerogrid.contacts.EmergencyContactsScreen(
                         onNavigate = { navigateTo(it) },
                         onBack = { navigateBack() }
+                    )
+                    Screen.PROFILE -> com.example.zerogrid.profile.ProfileScreen(
+                        onNavigate = { navigateTo(it) },
+                        onBack = { navigateBack() },
+                        onLogout = onLogout
                     )
                 }
             }

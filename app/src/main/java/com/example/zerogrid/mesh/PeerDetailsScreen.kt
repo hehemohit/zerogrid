@@ -122,7 +122,12 @@ fun PeerDetailsScreen(
 
 @Composable
 private fun PeerDetailsTopBar(onBackClick: () -> Unit = {}) {
-    Column {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(DarkBackground)
+            .statusBarsPadding()
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()

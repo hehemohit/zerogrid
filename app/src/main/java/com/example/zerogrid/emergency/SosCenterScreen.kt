@@ -217,7 +217,12 @@ fun SosCenterScreen(onNavigate: (Screen) -> Unit = {}) {
 
 @Composable
 private fun EmergencyTopBar(onBackClick: () -> Unit = {}) {
-    Column {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(DarkBackground)
+            .statusBarsPadding()
+    ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()

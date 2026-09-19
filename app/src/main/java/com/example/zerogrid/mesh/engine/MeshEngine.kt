@@ -77,6 +77,10 @@ class MeshEngine private constructor(private val context: Context) {
     private val _displayName = MutableStateFlow(getOrGenerateDisplayName(context, localNodeId))
     val displayName: StateFlow<String> = _displayName.asStateFlow()
 
+    fun setCustomDisplayName(name: String) {
+        _displayName.value = name.trim()
+    }
+
     private val _activeChannelMode = MutableStateFlow(MeshChannelMode.getSavedMode(context))
     val activeChannelMode: StateFlow<MeshChannelMode> = _activeChannelMode.asStateFlow()
 

@@ -28,9 +28,10 @@ import com.example.zerogrid.ui.theme.*
 @Composable
 fun ChatDetailScreen(onNavigate: (Screen) -> Unit = {}) {
     var messageText by remember { mutableStateOf("") }
+    val colors = ZeroGridTheme.colors // 1. Grab dynamic colors
 
     Scaffold(
-        containerColor = DarkBackground,
+        containerColor = colors.background, // 2. Replace static DarkBackground
         topBar = { ChatDetailTopBar(onBackClick = { onNavigate(Screen.MESSAGES) }) },
         bottomBar = { ChatBottomBar(messageText = messageText, onValueChange = { messageText = it }) }
     ) { paddingValues ->
@@ -44,7 +45,6 @@ fun ChatDetailScreen(onNavigate: (Screen) -> Unit = {}) {
         ) {
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Message 1: Alex
             OtherMessageItem(
                 initial = "A",
                 name = "Alex",
@@ -52,42 +52,36 @@ fun ChatDetailScreen(onNavigate: (Screen) -> Unit = {}) {
                 message = "Coordinates confirmed for Sector 4. Proceeding with caution.",
                 badgeText = "Direct",
                 badgeIcon = Icons.Outlined.Check,
-                badgeColor = StatusActive
+                badgeColor = colors.primary // Replace StatusActive
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Message 2: Rescue Team
             OtherMessageItem(
                 initial = "RT",
                 name = "Rescue Team",
                 time = "10:45 AM",
                 message = "Copy that. ETA 15 mikes. Ensure LZ is clear.",
                 badgeText = "2 hops   ↗ Routed through 2 peers",
-                badgeColor = StatusActive,
+                badgeColor = colors.primary,
                 isCustomBadge = true
             )
 
             Spacer(modifier = Modifier.height(16.dp))
-
-            // System Notification Chip
             SystemNotificationBadge(text = "Device-7A42 joined #mesh")
-
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Message 3: Device-7A42
             OtherMessageItem(
                 icon = Icons.Outlined.Router,
                 name = "Device-7A42",
                 time = "10:47 AM",
                 message = "[AUTOMATED] Signal strength optimal. Establishing relay link.",
                 badgeText = "Relay  •  1 hop",
-                badgeColor = StatusActive
+                badgeColor = colors.primary
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Message 4: You (CurrentUser)
             MyMessageItem(
                 time = "10:50 AM",
                 message = "LZ is secure. Standing by for visual.",
@@ -101,6 +95,7 @@ fun ChatDetailScreen(onNavigate: (Screen) -> Unit = {}) {
 
 @Composable
 private fun ChatDetailTopBar(onBackClick: () -> Unit = {}) {
+    val colors = ZeroGridTheme.colors
     Column {
         Row(
             modifier = Modifier
@@ -114,7 +109,7 @@ private fun ChatDetailTopBar(onBackClick: () -> Unit = {}) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
-                        tint = StatusActive,
+                        tint = colors.primary,
                         modifier = Modifier.size(24.dp)
                     )
                 }
@@ -122,13 +117,13 @@ private fun ChatDetailTopBar(onBackClick: () -> Unit = {}) {
                 Box(
                     modifier = Modifier
                         .size(36.dp)
-                        .background(SurfaceDarker, RoundedCornerShape(8.dp)),
+                        .background(colors.surfaceNested, RoundedCornerShape(8.dp)),
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = Icons.Outlined.Hub,
                         contentDescription = null,
-                        tint = StatusActive,
+                        tint = colors.primary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -137,7 +132,7 @@ private fun ChatDetailTopBar(onBackClick: () -> Unit = {}) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = "#mesh",
-                            color = TextPrimary,
+                            color = colors.textPrimary,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             fontFamily = FontFamily.Monospace
@@ -146,14 +141,14 @@ private fun ChatDetailTopBar(onBackClick: () -> Unit = {}) {
                         Icon(
                             imageVector = Icons.Outlined.Shield,
                             contentDescription = null,
-                            tint = StatusActive,
+                            tint = colors.primary,
                             modifier = Modifier.size(14.dp)
                         )
                     }
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "18 participants • Mesh Active",
-                        color = TextSecondary,
+                        color = colors.textSecondary,
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace
                     )
@@ -163,19 +158,19 @@ private fun ChatDetailTopBar(onBackClick: () -> Unit = {}) {
                 Icon(
                     imageVector = Icons.Outlined.Search,
                     contentDescription = "Search",
-                    tint = StatusActive,
+                    tint = colors.primary,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(20.dp))
                 Icon(
                     imageVector = Icons.Outlined.Info,
                     contentDescription = "Info",
-                    tint = StatusActive,
+                    tint = colors.primary,
                     modifier = Modifier.size(24.dp)
                 )
             }
         }
-        HorizontalDivider(color = DividerColor, thickness = 1.dp)
+        HorizontalDivider(color = colors.divider, thickness = 1.dp)
     }
 }
 
@@ -191,6 +186,7 @@ private fun OtherMessageItem(
     badgeIcon: ImageVector? = null,
     isCustomBadge: Boolean = false
 ) {
+    val colors = ZeroGridTheme.colors
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -201,19 +197,19 @@ private fun OtherMessageItem(
                 Box(
                     modifier = Modifier
                         .size(32.dp)
-                        .background(SurfaceDarker, CircleShape),
+                        .background(colors.surfaceNested, CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     if (icon != null) {
-                        Icon(imageVector = icon, contentDescription = null, tint = StatusActive, modifier = Modifier.size(16.dp))
+                        Icon(imageVector = icon, contentDescription = null, tint = colors.primary, modifier = Modifier.size(16.dp))
                     } else if (initial != null) {
-                        Text(text = initial, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text(text = initial, color = colors.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                 }
                 Spacer(modifier = Modifier.width(10.dp))
                 Text(
                     text = name,
-                    color = TextPrimary,
+                    color = colors.textPrimary,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace
@@ -221,7 +217,7 @@ private fun OtherMessageItem(
             }
             Text(
                 text = time,
-                color = TextSecondary,
+                color = colors.textSecondary,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace
             )
@@ -231,19 +227,19 @@ private fun OtherMessageItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 42.dp),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            colors = CardDefaults.cardColors(containerColor = colors.cardBackground),
             shape = RoundedCornerShape(12.dp)
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
                 Text(
                     text = message,
-                    color = TextPrimary,
+                    color = colors.textPrimary,
                     fontSize = 14.sp
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 Row(
                     modifier = Modifier
-                        .background(SurfaceDarker, RoundedCornerShape(6.dp))
+                        .background(colors.surfaceNested, RoundedCornerShape(6.dp))
                         .padding(horizontal = 8.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -255,7 +251,7 @@ private fun OtherMessageItem(
                         Box(
                             modifier = Modifier
                                 .size(8.dp)
-                                .background(StatusActive, RoundedCornerShape(2.dp))
+                                .background(colors.primary, RoundedCornerShape(2.dp))
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                     }
@@ -274,6 +270,7 @@ private fun OtherMessageItem(
 
 @Composable
 private fun SystemNotificationBadge(text: String) {
+    val colors = ZeroGridTheme.colors
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -281,13 +278,13 @@ private fun SystemNotificationBadge(text: String) {
         contentAlignment = Alignment.Center
     ) {
         Surface(
-            color = SurfaceDarker,
+            color = colors.surfaceNested,
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.wrapContentWidth()
         ) {
             Text(
                 text = text,
-                color = TextSecondary,
+                color = colors.textSecondary,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
@@ -303,6 +300,7 @@ private fun MyMessageItem(
     message: String,
     statusText: String
 ) {
+    val colors = ZeroGridTheme.colors
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.End
@@ -313,13 +311,13 @@ private fun MyMessageItem(
         ) {
             Text(
                 text = time,
-                color = TextSecondary,
+                color = colors.textSecondary,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace
             )
             Text(
                 text = "You",
-                color = TextPrimary,
+                color = colors.textPrimary,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = FontFamily.Monospace
@@ -330,7 +328,7 @@ private fun MyMessageItem(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = 42.dp),
-            colors = CardDefaults.cardColors(containerColor = CardBackground),
+            colors = CardDefaults.cardColors(containerColor = colors.cardBackground),
             shape = RoundedCornerShape(12.dp)
         ) {
             Column(
@@ -342,19 +340,20 @@ private fun MyMessageItem(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color(0xFF0F2C2A), RoundedCornerShape(8.dp))
+                        // Keep distinct contrast for user messages, but tint it using primary
+                        .background(colors.primary.copy(alpha = 0.15f), RoundedCornerShape(8.dp))
                         .padding(12.dp)
                 ) {
                     Text(
                         text = message,
-                        color = StatusActive,
+                        color = colors.primary,
                         fontSize = 14.sp
                     )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = statusText,
-                    color = StatusActive,
+                    color = colors.primary,
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Medium
@@ -366,12 +365,13 @@ private fun MyMessageItem(
 
 @Composable
 private fun ChatBottomBar(messageText: String, onValueChange: (String) -> Unit) {
+    val colors = ZeroGridTheme.colors
     Column {
-        HorizontalDivider(color = DividerColor, thickness = 1.dp)
+        HorizontalDivider(color = colors.divider, thickness = 1.dp)
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(DarkBackground)
+                .background(colors.background)
                 .padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -384,26 +384,26 @@ private fun ChatBottomBar(messageText: String, onValueChange: (String) -> Unit) 
                     onClick = { },
                     modifier = Modifier
                         .size(40.dp)
-                        .background(SurfaceDarker, CircleShape)
+                        .background(colors.surfaceNested, CircleShape)
                 ) {
-                    Icon(imageVector = Icons.Outlined.Add, contentDescription = "Add Attachment", tint = StatusActive)
+                    Icon(imageVector = Icons.Outlined.Add, contentDescription = "Add Attachment", tint = colors.primary)
                 }
                 OutlinedTextField(
                     value = messageText,
                     onValueChange = onValueChange,
-                    placeholder = { Text("Message #mesh...", color = TextSecondary, fontSize = 14.sp) },
+                    placeholder = { Text("Message #mesh...", color = colors.textSecondary, fontSize = 14.sp) },
                     modifier = Modifier
                         .weight(1f)
                         .height(50.dp),
                     shape = RoundedCornerShape(24.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = CardBackground,
-                        unfocusedContainerColor = CardBackground,
-                        disabledContainerColor = CardBackground,
+                        focusedContainerColor = colors.cardBackground,
+                        unfocusedContainerColor = colors.cardBackground,
+                        disabledContainerColor = colors.cardBackground,
                         focusedBorderColor = Color.Transparent,
                         unfocusedBorderColor = Color.Transparent,
-                        focusedTextColor = TextPrimary,
-                        unfocusedTextColor = TextPrimary
+                        focusedTextColor = colors.textPrimary,
+                        unfocusedTextColor = colors.textPrimary
                     ),
                     singleLine = true
                 )
@@ -411,7 +411,7 @@ private fun ChatBottomBar(messageText: String, onValueChange: (String) -> Unit) 
                     onClick = { },
                     modifier = Modifier.size(48.dp),
                     shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = StatusActive),
+                    colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
                     contentPadding = PaddingValues(0.dp)
                 ) {
                     Icon(imageVector = Icons.AutoMirrored.Filled.Send, contentDescription = "Send", tint = Color.Black, modifier = Modifier.size(20.dp))
@@ -422,13 +422,13 @@ private fun ChatBottomBar(messageText: String, onValueChange: (String) -> Unit) 
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
-                Icon(imageVector = Icons.Outlined.Lock, contentDescription = null, tint = StatusActive, modifier = Modifier.size(12.dp))
+                Icon(imageVector = Icons.Outlined.Lock, contentDescription = null, tint = colors.primary, modifier = Modifier.size(12.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Icon(imageVector = Icons.Outlined.Lock, contentDescription = null, tint = StatusActive, modifier = Modifier.size(12.dp))
+                Icon(imageVector = Icons.Outlined.Lock, contentDescription = null, tint = colors.primary, modifier = Modifier.size(12.dp))
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
                     text = "End-to-end encrypted",
-                    color = TextSecondary,
+                    color = colors.textSecondary,
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace
                 )
@@ -440,9 +440,10 @@ private fun ChatBottomBar(messageText: String, onValueChange: (String) -> Unit) 
 
 @Composable
 private fun DashboardBottomNavChatActive() {
+    val colors = ZeroGridTheme.colors
     NavigationBar(
-        containerColor = BottomNavBg,
-        contentColor = TextSecondary,
+        containerColor = colors.background,
+        contentColor = colors.textSecondary,
         tonalElevation = 0.dp
     ) {
         val items = listOf(
@@ -460,10 +461,10 @@ private fun DashboardBottomNavChatActive() {
                 label = { Text(text = label, fontFamily = FontFamily.Monospace, fontSize = 10.sp) },
                 colors = NavigationBarItemDefaults.colors(
                     selectedIconColor = Color.Black,
-                    unselectedIconColor = TextSecondary,
-                    selectedTextColor = TextSecondary,
-                    unselectedTextColor = TextSecondary,
-                    indicatorColor = StatusActive
+                    unselectedIconColor = colors.textSecondary,
+                    selectedTextColor = colors.textSecondary,
+                    unselectedTextColor = colors.textSecondary,
+                    indicatorColor = colors.primary
                 )
             )
         }

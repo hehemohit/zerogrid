@@ -37,6 +37,7 @@ fun SendFileScreen(onNavigate: (Screen) -> Unit = {}) {
     val context = LocalContext.current
     val meshEngine = MeshEngine.getInstance(context)
     val peers by meshEngine.connectedPeers.collectAsState()
+    val colors = ZeroGridTheme.colors
 
     var selectedPermission by remember { mutableStateOf("Downloadable") }
     var selectedFileUri by remember { mutableStateOf<Uri?>(null) }
@@ -51,7 +52,7 @@ fun SendFileScreen(onNavigate: (Screen) -> Unit = {}) {
     }
 
     Scaffold(
-        containerColor = DarkBackground,
+        containerColor = colors.background,
         topBar = { SendFileTopBar(onBackClick = { onNavigate(Screen.FILES) }) },
         bottomBar = { ZeroGridBottomBar(currentScreen = Screen.FILES, onNavigate = onNavigate) }
     ) { paddingValues ->
@@ -69,7 +70,7 @@ fun SendFileScreen(onNavigate: (Screen) -> Unit = {}) {
             // Select File Section
             Text(
                 text = "SELECT FILE",
-                color = TextSecondary,
+                color = colors.textSecondary,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold
@@ -84,7 +85,7 @@ fun SendFileScreen(onNavigate: (Screen) -> Unit = {}) {
             // Send To Section
             Text(
                 text = "SEND TO",
-                color = TextSecondary,
+                color = colors.textSecondary,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold
@@ -100,7 +101,7 @@ fun SendFileScreen(onNavigate: (Screen) -> Unit = {}) {
             // File Permission Section
             Text(
                 text = "FILE PERMISSION",
-                color = TextSecondary,
+                color = colors.textSecondary,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold
@@ -128,12 +129,12 @@ fun SendFileScreen(onNavigate: (Screen) -> Unit = {}) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = StatusActive),
+                colors = ButtonDefaults.buttonColors(containerColor = colors.primary),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Text(
                     text = "Transmit File Over Mesh",
-                    color = Color.Black,
+                    color = if (colors.isDark) Color.Black else Color.White,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -147,7 +148,7 @@ fun SendFileScreen(onNavigate: (Screen) -> Unit = {}) {
             ) {
                 Text(
                     text = "Encrypted  •  Peer-to-Peer  •  No Cloud",
-                    color = TextSecondary,
+                    color = colors.textSecondary,
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace
                 )
@@ -159,6 +160,7 @@ fun SendFileScreen(onNavigate: (Screen) -> Unit = {}) {
 
 @Composable
 private fun SendFileTopBar(onBackClick: () -> Unit = {}) {
+    val colors = ZeroGridTheme.colors
     Column {
         Row(
             modifier = Modifier
@@ -172,22 +174,22 @@ private fun SendFileTopBar(onBackClick: () -> Unit = {}) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
-                        tint = StatusActive,
+                        tint = colors.primary,
                         modifier = Modifier.size(24.dp)
                     )
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Send File",
-                    color = StatusActive,
+                    color = colors.primary,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
             Surface(
-                color = SurfaceDarker,
+                color = colors.surfaceNested,
                 shape = RoundedCornerShape(20.dp),
-                border = BorderStroke(1.dp, DividerColor)
+                border = BorderStroke(1.dp, colors.divider)
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -196,13 +198,13 @@ private fun SendFileTopBar(onBackClick: () -> Unit = {}) {
                     Icon(
                         imageVector = Icons.Outlined.Shield,
                         contentDescription = null,
-                        tint = StatusActive,
+                        tint = colors.primary,
                         modifier = Modifier.size(12.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "ENCRYPTED",
-                        color = StatusActive,
+                        color = colors.primary,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace
@@ -210,37 +212,39 @@ private fun SendFileTopBar(onBackClick: () -> Unit = {}) {
                 }
             }
         }
-        HorizontalDivider(color = DividerColor, thickness = 1.dp)
+        HorizontalDivider(color = colors.divider, thickness = 1.dp)
     }
 }
 
 @Composable
 private fun SendFileStepIndicator() {
+    val colors = ZeroGridTheme.colors
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center
     ) {
         StepIndicatorItem(step = "1", label = "File", active = true)
-        HorizontalDivider(modifier = Modifier.width(40.dp), color = DividerColor, thickness = 1.dp)
+        HorizontalDivider(modifier = Modifier.width(40.dp), color = colors.divider, thickness = 1.dp)
         StepIndicatorItem(step = "2", label = "Recipient", active = false)
-        HorizontalDivider(modifier = Modifier.width(40.dp), color = DividerColor, thickness = 1.dp)
+        HorizontalDivider(modifier = Modifier.width(40.dp), color = colors.divider, thickness = 1.dp)
         StepIndicatorItem(step = "3", label = "Send", active = false)
     }
 }
 
 @Composable
 private fun StepIndicatorItem(step: String, label: String, active: Boolean) {
+    val colors = ZeroGridTheme.colors
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
                 .size(28.dp)
-                .background(if (active) StatusActive else SurfaceDarker, CircleShape),
+                .background(if (active) colors.primary else colors.surfaceNested, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = step,
-                color = if (active) Color.Black else TextSecondary,
+                color = if (active) (if (colors.isDark) Color.Black else Color.White) else colors.textSecondary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 fontFamily = FontFamily.Monospace
@@ -249,7 +253,7 @@ private fun StepIndicatorItem(step: String, label: String, active: Boolean) {
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = label,
-            color = if (active) StatusActive else TextSecondary,
+            color = if (active) colors.primary else colors.textSecondary,
             fontSize = 11.sp,
             fontFamily = FontFamily.Monospace
         )
@@ -261,11 +265,12 @@ private fun ChooseFileCard(
     selectedFileName: String,
     onBrowseClick: () -> Unit
 ) {
+    val colors = ZeroGridTheme.colors
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = colors.cardBackground),
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, if (selectedFileName.isNotEmpty()) StatusActive else DividerColor)
+        border = BorderStroke(1.dp, if (selectedFileName.isNotEmpty()) colors.primary else colors.divider)
     ) {
         Column(
             modifier = Modifier
@@ -276,27 +281,27 @@ private fun ChooseFileCard(
             Box(
                 modifier = Modifier
                     .size(56.dp)
-                    .background(SurfaceDarker, CircleShape),
+                    .background(colors.surfaceNested, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = if (selectedFileName.isNotEmpty()) Icons.Outlined.CheckCircle else Icons.Outlined.FileUpload,
                     contentDescription = null,
-                    tint = StatusActive,
+                    tint = colors.primary,
                     modifier = Modifier.size(28.dp)
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = if (selectedFileName.isNotEmpty()) selectedFileName else "Choose a file",
-                color = TextPrimary,
+                color = colors.textPrimary,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = if (selectedFileName.isNotEmpty()) "File selected from device storage ready to transmit." else "Select a document, image, or file from this device.",
-                color = TextSecondary,
+                color = colors.textSecondary,
                 fontSize = 13.sp,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
@@ -306,13 +311,13 @@ private fun ChooseFileCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = SurfaceDarker),
+                colors = ButtonDefaults.buttonColors(containerColor = colors.surfaceNested),
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, DividerColor)
+                border = BorderStroke(1.dp, colors.divider)
             ) {
                 Text(
                     text = if (selectedFileName.isNotEmpty()) "Change File" else "Browse Files",
-                    color = StatusActive,
+                    color = colors.primary,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace
@@ -328,21 +333,22 @@ private fun RecipientSelectionList(
     selectedRecipientId: String,
     onSelectRecipient: (String) -> Unit
 ) {
+    val colors = ZeroGridTheme.colors
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (peers.isEmpty()) {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = CardBackground),
+                colors = CardDefaults.cardColors(containerColor = colors.cardBackground),
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, DividerColor)
+                border = BorderStroke(1.dp, colors.divider)
             ) {
                 Box(modifier = Modifier.fillMaxWidth().padding(20.dp), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(imageVector = Icons.Outlined.Devices, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(28.dp))
+                        Icon(imageVector = Icons.Outlined.Devices, contentDescription = null, tint = colors.textSecondary, modifier = Modifier.size(28.dp))
                         Spacer(modifier = Modifier.height(8.dp))
-                        Text(text = "No mesh peers discovered", color = TextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                        Text(text = "No mesh peers discovered", color = colors.textPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
                         Spacer(modifier = Modifier.height(4.dp))
-                        Text(text = "Bring another ZeroGrid device nearby to transfer files offline.", color = TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                        Text(text = "Bring another ZeroGrid device nearby to transfer files offline.", color = colors.textSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                     }
                 }
             }
@@ -353,8 +359,8 @@ private fun RecipientSelectionList(
                     onClick = { onSelectRecipient(peer.nodeId) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(1.dp, if (isSelected) StatusActive else DividerColor, RoundedCornerShape(12.dp)),
-                    colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        .border(1.dp, if (isSelected) colors.primary else colors.divider, RoundedCornerShape(12.dp)),
+                    colors = CardDefaults.cardColors(containerColor = colors.cardBackground),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Row(
@@ -368,30 +374,30 @@ private fun RecipientSelectionList(
                             Box(
                                 modifier = Modifier
                                     .size(36.dp)
-                                    .background(if (isSelected) StatusActive else SurfaceDarker, CircleShape),
+                                    .background(if (isSelected) colors.primary else colors.surfaceNested, CircleShape),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
                                     text = peer.alias.take(1).uppercase(),
-                                    color = if (isSelected) Color.Black else TextPrimary,
+                                    color = if (isSelected) (if (colors.isDark) Color.Black else Color.White) else colors.textPrimary,
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
-                                Text(text = peer.alias, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text(text = peer.alias, color = colors.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     text = "${if (peer.hopDistance == 1) "Direct Link" else "${peer.hopDistance} hops"}  •  ${peer.transportType}",
-                                    color = if (isSelected) StatusActive else TextSecondary,
+                                    color = if (isSelected) colors.primary else colors.textSecondary,
                                     fontSize = 11.sp,
                                     fontFamily = FontFamily.Monospace
                                 )
                             }
                         }
                         if (isSelected) {
-                            Icon(imageVector = Icons.Outlined.CheckCircle, contentDescription = null, tint = StatusActive, modifier = Modifier.size(20.dp))
+                            Icon(imageVector = Icons.Outlined.CheckCircle, contentDescription = null, tint = colors.primary, modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -402,6 +408,7 @@ private fun RecipientSelectionList(
 
 @Composable
 private fun FilePermissionRow(selected: String, onSelected: (String) -> Unit) {
+    val colors = ZeroGridTheme.colors
     val permissions = listOf("View Only", "Downloadable")
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -415,11 +422,11 @@ private fun FilePermissionRow(selected: String, onSelected: (String) -> Unit) {
                     .height(48.dp)
                     .weight(1f),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isSelected) StatusActive else CardBackground,
-                    contentColor = if (isSelected) Color.Black else TextSecondary
+                    containerColor = if (isSelected) colors.primary else colors.cardBackground,
+                    contentColor = if (isSelected) (if (colors.isDark) Color.Black else Color.White) else colors.textSecondary
                 ),
                 shape = RoundedCornerShape(12.dp),
-                border = if (!isSelected) BorderStroke(1.dp, DividerColor) else null,
+                border = if (!isSelected) BorderStroke(1.dp, colors.divider) else null,
                 contentPadding = PaddingValues(0.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -446,16 +453,17 @@ private fun TransferSummaryCard(
     fileName: String = "No file chosen",
     recipient: String = "No peer selected"
 ) {
+    val colors = ZeroGridTheme.colors
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = colors.cardBackground),
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, DividerColor)
+        border = BorderStroke(1.dp, colors.divider)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
                 text = "Transfer Summary",
-                color = TextPrimary,
+                color = colors.textPrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -473,16 +481,15 @@ private fun TransferSummaryCard(
 
 @Composable
 private fun SummaryRow(label: String, value: String) {
+    val colors = ZeroGridTheme.colors
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(text = label, color = TextSecondary, fontSize = 13.sp)
-        Text(text = value, color = TextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium, fontFamily = FontFamily.Monospace)
+        Text(text = label, color = colors.textSecondary, fontSize = 13.sp)
+        Text(text = value, color = colors.textPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium, fontFamily = FontFamily.Monospace)
     }
 }
-
-
 
 @Composable
 fun ZeroGridSendFileScreen() = SendFileScreen()

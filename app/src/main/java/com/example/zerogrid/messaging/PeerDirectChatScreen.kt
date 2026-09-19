@@ -50,6 +50,7 @@ fun PeerDirectChatScreen(
     val messageStore = remember(context) { MessageStore.getInstance(context) }
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
+    val colors = ZeroGridTheme.colors
 
     var messageText by remember { mutableStateOf("") }
     val activeChannelMode by meshEngine.activeChannelMode.collectAsState()
@@ -79,7 +80,7 @@ fun PeerDirectChatScreen(
     }
 
     Scaffold(
-        containerColor = DarkBackground,
+        containerColor = colors.background,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             PeerChatTopBar(
@@ -103,20 +104,20 @@ fun PeerDirectChatScreen(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(DarkBackground)
+                        .background(colors.background)
                         .padding(horizontal = 16.dp, vertical = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
                         imageVector = if (activeChannelMode == com.example.zerogrid.mesh.engine.MeshChannelMode.BLE) Icons.Outlined.Bluetooth else Icons.Outlined.Wifi,
                         contentDescription = null,
-                        tint = StatusActive,
+                        tint = colors.primary,
                         modifier = Modifier.size(13.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = "Active Channel: ${activeChannelMode.displayName}",
-                        color = TextSecondary,
+                        color = colors.textSecondary,
                         fontSize = 10.sp,
                         fontFamily = FontFamily.Monospace
                     )
@@ -149,12 +150,12 @@ fun PeerDirectChatScreen(
                     Box(
                         modifier = Modifier
                             .size(64.dp)
-                            .background(SurfaceDarker, CircleShape),
+                            .background(colors.surfaceNested, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = displayName.first().uppercaseChar().toString(),
-                            color = StatusActive,
+                            color = colors.primary,
                             fontSize = 28.sp,
                             fontWeight = FontWeight.Bold
                         )
@@ -162,7 +163,7 @@ fun PeerDirectChatScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = displayName,
-                        color = TextPrimary,
+                        color = colors.textPrimary,
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         fontFamily = FontFamily.Monospace
@@ -170,19 +171,19 @@ fun PeerDirectChatScreen(
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = if (isOnline) "Connected via mesh • $hopInfo" else "Not currently in range",
-                        color = if (isOnline) StatusActive else TextSecondary,
+                        color = if (isOnline) colors.primary else colors.textSecondary,
                         fontSize = 12.sp,
                         fontFamily = FontFamily.Monospace
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = CardBackground),
+                        colors = CardDefaults.cardColors(containerColor = colors.cardBackground),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.padding(horizontal = 32.dp)
                     ) {
                         Text(
                             text = "No messages yet.\nSay hello to ${displayName}!",
-                            color = TextSecondary,
+                            color = colors.textSecondary,
                             fontSize = 13.sp,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.padding(20.dp),
@@ -235,6 +236,7 @@ private fun PeerChatTopBar(
     onToggleMode: () -> Unit,
     onBackClick: () -> Unit
 ) {
+    val colors = ZeroGridTheme.colors
     Column {
         Row(
             modifier = Modifier
@@ -246,7 +248,7 @@ private fun PeerChatTopBar(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                     contentDescription = "Back",
-                    tint = StatusActive,
+                    tint = colors.primary,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -254,16 +256,15 @@ private fun PeerChatTopBar(
             Box(
                 modifier = Modifier
                     .size(38.dp)
-                    .background(SurfaceDarker, CircleShape),
+                    .background(colors.surfaceNested, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = displayName.firstOrNull()?.uppercaseChar()?.toString() ?: "?",
-                    color = StatusActive,
+                    color = colors.primary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
-                // Online indicator dot
                 if (isOnline) {
                     Box(
                         modifier = Modifier
@@ -277,24 +278,23 @@ private fun PeerChatTopBar(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = displayName,
-                    color = TextPrimary,
+                    color = colors.textPrimary,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = FontFamily.Monospace
                 )
                 Text(
                     text = if (isOnline) "Online • $hopInfo" else "Last seen on mesh",
-                    color = if (isOnline) Color(0xFF4CAF50) else TextSecondary,
+                    color = if (isOnline) Color(0xFF4CAF50) else colors.textSecondary,
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace
                 )
             }
 
-            // Clickable Channel Mode Switcher Pill
             Row(
                 modifier = Modifier
-                    .background(SurfaceDarker, RoundedCornerShape(12.dp))
-                    .border(1.dp, StatusActive.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                    .background(colors.surfaceNested, RoundedCornerShape(12.dp))
+                    .border(1.dp, colors.primary.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
                     .clickable { onToggleMode() }
                     .padding(horizontal = 8.dp, vertical = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -303,19 +303,19 @@ private fun PeerChatTopBar(
                 Icon(
                     imageVector = if (activeMode == com.example.zerogrid.mesh.engine.MeshChannelMode.BLE) Icons.Outlined.Bluetooth else Icons.Outlined.Wifi,
                     contentDescription = "Switch Channel",
-                    tint = StatusActive,
+                    tint = colors.primary,
                     modifier = Modifier.size(13.dp)
                 )
                 Text(
                     text = activeMode.id,
-                    color = StatusActive,
+                    color = colors.primary,
                     fontSize = 11.sp,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold
                 )
             }
         }
-        HorizontalDivider(color = DividerColor, thickness = 1.dp)
+        HorizontalDivider(color = colors.divider, thickness = 1.dp)
     }
 }
 
@@ -326,7 +326,7 @@ private fun SentMessageBubble(
 ) {
     val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(msg.timestamp)
     val isPaused = msg.status == MessageStatus.PAUSED
-    val isSending = msg.status == MessageStatus.SENDING
+    val colors = ZeroGridTheme.colors
 
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -336,11 +336,11 @@ private fun SentMessageBubble(
             modifier = Modifier
                 .widthIn(max = 280.dp)
                 .background(
-                    if (isPaused) Color(0xFF2C2410) else Color(0xFF0D2B28),
+                    if (isPaused) Color(0xFFFFB74D).copy(alpha = 0.15f) else colors.primary.copy(alpha = 0.15f),
                     RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp)
                 )
                 .then(
-                    if (isPaused) Modifier.border(1.dp, Color(0xFFFFB74D), RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp))
+                    if (isPaused) Modifier.border(1.dp, Color(0xFFFFB74D).copy(alpha = 0.5f), RoundedCornerShape(16.dp, 4.dp, 16.dp, 16.dp))
                     else Modifier
                 )
                 .clickable(enabled = isPaused) { onRetryClick() }
@@ -349,7 +349,7 @@ private fun SentMessageBubble(
             Column {
                 Text(
                     text = msg.text,
-                    color = if (isPaused) Color(0xFFFFE0B2) else StatusActive,
+                    color = if (isPaused) colors.textPrimary else colors.primary,
                     fontSize = 14.sp,
                     lineHeight = 20.sp
                 )
@@ -361,7 +361,7 @@ private fun SentMessageBubble(
                 ) {
                     Text(
                         text = timeStr,
-                        color = if (isPaused) Color(0xFFFFB74D).copy(alpha = 0.8f) else StatusActive.copy(alpha = 0.6f),
+                        color = if (isPaused) Color(0xFFFFB74D).copy(alpha = 0.8f) else colors.primary.copy(alpha = 0.6f),
                         fontSize = 10.sp,
                         fontFamily = FontFamily.Monospace
                     )
@@ -378,7 +378,7 @@ private fun SentMessageBubble(
                             Icon(
                                 imageVector = Icons.Outlined.Schedule,
                                 contentDescription = "Sending",
-                                tint = StatusActive.copy(alpha = 0.6f),
+                                tint = colors.primary.copy(alpha = 0.6f),
                                 modifier = Modifier.size(12.dp)
                             )
                         }
@@ -386,7 +386,7 @@ private fun SentMessageBubble(
                             Icon(
                                 imageVector = Icons.Outlined.Check,
                                 contentDescription = "Sent",
-                                tint = StatusActive.copy(alpha = 0.7f),
+                                tint = colors.primary.copy(alpha = 0.7f),
                                 modifier = Modifier.size(12.dp)
                             )
                         }
@@ -395,13 +395,13 @@ private fun SentMessageBubble(
                                 Icon(
                                     imageVector = Icons.Outlined.Check,
                                     contentDescription = "Delivered",
-                                    tint = StatusActive,
+                                    tint = colors.primary,
                                     modifier = Modifier.size(12.dp)
                                 )
                                 Icon(
                                     imageVector = Icons.Outlined.Check,
                                     contentDescription = null,
-                                    tint = StatusActive,
+                                    tint = colors.primary,
                                     modifier = Modifier.size(12.dp)
                                 )
                             }
@@ -414,7 +414,7 @@ private fun SentMessageBubble(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .background(Color(0xFF3E3114), RoundedCornerShape(6.dp))
+                            .background(Color(0xFFFFB74D).copy(alpha = 0.1f), RoundedCornerShape(6.dp))
                             .padding(horizontal = 8.dp, vertical = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.Center
@@ -443,6 +443,8 @@ private fun SentMessageBubble(
 @Composable
 private fun ReceivedMessageBubble(msg: StoredMessage, senderName: String) {
     val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(msg.timestamp)
+    val colors = ZeroGridTheme.colors
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Bottom
@@ -450,12 +452,12 @@ private fun ReceivedMessageBubble(msg: StoredMessage, senderName: String) {
         Box(
             modifier = Modifier
                 .size(28.dp)
-                .background(SurfaceDarker, CircleShape),
+                .background(colors.surfaceNested, CircleShape),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = senderName.first().uppercaseChar().toString(),
-                color = TextPrimary,
+                color = colors.textPrimary,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -464,7 +466,7 @@ private fun ReceivedMessageBubble(msg: StoredMessage, senderName: String) {
         Column {
             Text(
                 text = senderName,
-                color = TextSecondary,
+                color = colors.textSecondary,
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
                 modifier = Modifier.padding(bottom = 4.dp)
@@ -472,13 +474,13 @@ private fun ReceivedMessageBubble(msg: StoredMessage, senderName: String) {
             Box(
                 modifier = Modifier
                     .widthIn(max = 280.dp)
-                    .background(CardBackground, RoundedCornerShape(4.dp, 16.dp, 16.dp, 16.dp))
+                    .background(colors.cardBackground, RoundedCornerShape(4.dp, 16.dp, 16.dp, 16.dp))
                     .padding(12.dp, 10.dp)
             ) {
                 Column {
                     Text(
                         text = msg.text,
-                        color = TextPrimary,
+                        color = colors.textPrimary,
                         fontSize = 14.sp,
                         lineHeight = 20.sp
                     )
@@ -490,14 +492,14 @@ private fun ReceivedMessageBubble(msg: StoredMessage, senderName: String) {
                     ) {
                         Text(
                             text = timeStr,
-                            color = TextSecondary,
+                            color = colors.textSecondary,
                             fontSize = 10.sp,
                             fontFamily = FontFamily.Monospace
                         )
                         if (msg.hopCount > 0) {
                             Text(
                                 text = "• ${msg.hopCount}↗",
-                                color = TextSecondary,
+                                color = colors.textSecondary,
                                 fontSize = 10.sp,
                                 fontFamily = FontFamily.Monospace
                             )
@@ -517,13 +519,14 @@ private fun PeerChatInputBar(
     isOnline: Boolean,
     enabled: Boolean
 ) {
+    val colors = ZeroGridTheme.colors
     Column {
-        HorizontalDivider(color = DividerColor, thickness = 1.dp)
+        HorizontalDivider(color = colors.divider, thickness = 1.dp)
         if (!isOnline) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(SurfaceDarker)
+                    .background(colors.surfaceNested)
                     .padding(horizontal = 16.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
@@ -546,7 +549,7 @@ private fun PeerChatInputBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(DarkBackground)
+                .background(colors.background)
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -557,7 +560,7 @@ private fun PeerChatInputBar(
                 placeholder = {
                     Text(
                         text = if (isOnline) "Send a message..." else "Message (pauses if offline)...",
-                        color = TextSecondary,
+                        color = colors.textSecondary,
                         fontSize = 14.sp
                     )
                 },
@@ -566,13 +569,13 @@ private fun PeerChatInputBar(
                     .height(50.dp),
                 shape = RoundedCornerShape(24.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = CardBackground,
-                    unfocusedContainerColor = CardBackground,
-                    disabledContainerColor = SurfaceDarker,
+                    focusedContainerColor = colors.cardBackground,
+                    unfocusedContainerColor = colors.cardBackground,
+                    disabledContainerColor = colors.surfaceNested,
                     focusedBorderColor = Color.Transparent,
                     unfocusedBorderColor = Color.Transparent,
-                    focusedTextColor = TextPrimary,
-                    unfocusedTextColor = TextPrimary
+                    focusedTextColor = colors.textPrimary,
+                    unfocusedTextColor = colors.textPrimary
                 ),
                 singleLine = true
             )
@@ -581,8 +584,8 @@ private fun PeerChatInputBar(
                 modifier = Modifier.size(48.dp),
                 shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (enabled && messageText.isNotBlank()) StatusActive else SurfaceDarker,
-                    disabledContainerColor = SurfaceDarker
+                    containerColor = if (enabled && messageText.isNotBlank()) colors.primary else colors.surfaceNested,
+                    disabledContainerColor = colors.surfaceNested
                 ),
                 enabled = enabled && messageText.isNotBlank(),
                 contentPadding = PaddingValues(0.dp)
@@ -590,7 +593,7 @@ private fun PeerChatInputBar(
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.Send,
                     contentDescription = "Send",
-                    tint = if (enabled && messageText.isNotBlank()) Color.Black else TextSecondary,
+                    tint = if (enabled && messageText.isNotBlank()) (if (colors.isDark) Color.Black else Color.White) else colors.textSecondary,
                     modifier = Modifier.size(20.dp)
                 )
             }
@@ -602,11 +605,11 @@ private fun PeerChatInputBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center
         ) {
-            Icon(imageVector = Icons.Outlined.Lock, contentDescription = null, tint = StatusActive.copy(alpha = 0.5f), modifier = Modifier.size(11.dp))
+            Icon(imageVector = Icons.Outlined.Lock, contentDescription = null, tint = colors.primary.copy(alpha = 0.5f), modifier = Modifier.size(11.dp))
             Spacer(modifier = Modifier.width(4.dp))
             Text(
                 text = "End-to-end encrypted over mesh",
-                color = TextSecondary,
+                color = colors.textSecondary,
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace
             )

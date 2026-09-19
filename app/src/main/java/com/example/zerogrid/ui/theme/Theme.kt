@@ -17,53 +17,55 @@ import androidx.core.view.WindowCompat
 val LocalZeroGridColors = staticCompositionLocalOf { LightZeroGridColors }
 
 object ZeroGridTheme {
+    // 1. Provides color access: ZeroGridTheme.colors
     val colors: ZeroGridColorScheme
         @Composable
         @ReadOnlyComposable
         get() = LocalZeroGridColors.current
-}
 
-@Composable
-fun ZeroGridTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    content: @Composable () -> Unit
-) {
-    val customColors = if (darkTheme) DarkZeroGridColors else LightZeroGridColors
-    val materialColors = if (darkTheme) {
-        darkColorScheme(
-            primary = customColors.primary,
-            secondary = customColors.secondary,
-            background = customColors.background,
-            surface = customColors.cardBackground,
-            onPrimary = customColors.background,
-            onBackground = customColors.textPrimary,
-            onSurface = customColors.textPrimary
-        )
-    } else {
-        lightColorScheme(
-            primary = customColors.primary,
-            secondary = customColors.secondary,
-            background = customColors.background,
-            surface = customColors.cardBackground,
-            onPrimary = customColors.cardBackground,
-            onBackground = customColors.textPrimary,
-            onSurface = customColors.textPrimary
-        )
-    }
-
-    val view = LocalView.current
-    if (!view.isInEditMode && view.context is Activity) {
-        SideEffect {
-            val window = (view.context as Activity).window
-            window.statusBarColor = customColors.background.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+    // 2. Provides theme wrapper: ZeroGridTheme(darkTheme = ...) { ... }
+    @Composable
+    operator fun invoke(
+        darkTheme: Boolean = isSystemInDarkTheme(),
+        content: @Composable () -> Unit
+    ) {
+        val customColors = if (darkTheme) DarkZeroGridColors else LightZeroGridColors
+        val materialColors = if (darkTheme) {
+            darkColorScheme(
+                primary = customColors.primary,
+                secondary = customColors.secondary,
+                background = customColors.background,
+                surface = customColors.cardBackground,
+                onPrimary = customColors.background,
+                onBackground = customColors.textPrimary,
+                onSurface = customColors.textPrimary
+            )
+        } else {
+            lightColorScheme(
+                primary = customColors.primary,
+                secondary = customColors.secondary,
+                background = customColors.background,
+                surface = customColors.cardBackground,
+                onPrimary = customColors.cardBackground,
+                onBackground = customColors.textPrimary,
+                onSurface = customColors.textPrimary
+            )
         }
-    }
 
-    CompositionLocalProvider(LocalZeroGridColors provides customColors) {
-        MaterialTheme(
-            colorScheme = materialColors,
-            content = content
-        )
+        val view = LocalView.current
+        if (!view.isInEditMode && view.context is Activity) {
+            SideEffect {
+                val window = (view.context as Activity).window
+                window.statusBarColor = customColors.background.toArgb()
+                WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
+            }
+        }
+
+        CompositionLocalProvider(LocalZeroGridColors provides customColors) {
+            MaterialTheme(
+                colorScheme = materialColors,
+                content = content
+            )
+        }
     }
 }

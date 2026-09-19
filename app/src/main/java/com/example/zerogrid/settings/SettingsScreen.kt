@@ -1,5 +1,6 @@
 package com.example.zerogrid.settings
 
+import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -35,7 +36,11 @@ import com.example.zerogrid.ui.theme.BadgeGreen
 import com.example.zerogrid.ui.theme.ZeroGridTheme
 import com.example.zerogrid.util.ValidationUtils
 import com.zerogrid.mesh.app.ui.UserSessionManager
+import com.example.zerogrid.ui.ThemeMode
+import com.example.zerogrid.ui.ThemePreferenceManager
+import kotlinx.coroutines.launch
 
+@SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 fun SettingsScreen(
     onNavigate: (Screen) -> Unit = {},
@@ -44,10 +49,11 @@ fun SettingsScreen(
     val context = LocalContext.current
     val sessionManager = remember { UserSessionManager.getInstance(context) }
     val authViewModel = remember { AuthViewModel(AuthRepository(sessionManager)) }
-    val profileState by authViewModel.profileState.collectAsState()
-
     val meshEngine = remember { MeshEngine.getInstance(context) }
     val peers by meshEngine.connectedPeers.collectAsState()
+    val themePreferenceManager = remember { ThemePreferenceManager(context.applicationContext) }
+    val scope = rememberCoroutineScope()
+    val currentThemeMode by themePreferenceManager.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
     val isMeshActive by meshEngine.isMeshActive.collectAsState()
     val activeChannelMode by meshEngine.activeChannelMode.collectAsState()
     val colors = ZeroGridTheme.colors
@@ -443,6 +449,44 @@ fun SettingsScreen(
 
                             Spacer(modifier = Modifier.height(24.dp))
 
+                            // Section: APPEARANCE
+                            SectionLabel(text = "APPEARANCE")
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = colors.cardBackground),
+                                border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(colors.divider))
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        text = "Theme",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = colors.textPrimary
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                                        val options = listOf(ThemeMode.LIGHT, ThemeMode.SYSTEM, ThemeMode.DARK)
+                                        val labels = listOf("Light", "System", "Dark")
+                                        options.forEachIndexed { index, mode ->
+                                            SegmentedButton(
+                                                selected = currentThemeMode == mode,
+                                                onClick = {
+                                                    scope.launch {
+                                                        themePreferenceManager.setThemeMode(mode)
+                                                    }
+                                                },
+                                                shape = SegmentedButtonDefaults.itemShape(index = index, count = options.size)
+                                            ) {
+                                                Text(labels[index])
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(24.dp))
                             // Section 3: EMERGENCY & CRISIS RESPONSE
                             SectionLabel(text = "EMERGENCY & CRISIS RESPONSE")
                             Spacer(modifier = Modifier.height(8.dp))

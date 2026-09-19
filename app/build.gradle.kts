@@ -65,6 +65,7 @@ dependencies {
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.androidx.constraintlayout)
+    implementation(libs.androidx.datastore.preferences)
 
     // Jetpack Compose dependencies using TOML catalog
     val composeBom = platform(libs.androidx.compose.bom)

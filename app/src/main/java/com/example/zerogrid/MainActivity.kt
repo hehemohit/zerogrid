@@ -1,6 +1,7 @@
 package com.example.zerogrid
 
 import android.Manifest
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -9,6 +10,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -16,6 +18,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
 import com.example.zerogrid.admin.AdminPanelScreen
 import com.example.zerogrid.auth.LoginScreen
 import com.example.zerogrid.auth.ProfileCompletionScreen
@@ -26,6 +34,10 @@ import com.example.zerogrid.ui.theme.ZeroGridTheme
 import com.zerogrid.mesh.app.ui.UserRole
 import com.zerogrid.mesh.app.ui.UserSessionManager
 import com.zerogrid.mesh.app.ui.navigation.AppScreen
+import com.example.zerogrid.ui.ThemeMode
+import com.example.zerogrid.ui.ThemePreferenceManager
+
+    private val THEME_KEY = stringPreferencesKey("theme_mode")
 
 // ── Main App Gateway ───────────────────────────────────────────────────────
 
@@ -172,8 +184,20 @@ class MainActivity : ComponentActivity() {
 
         checkAndRequestPermissions()
 
+        val themePreferenceManager = ThemePreferenceManager(this)
+
         setContent {
-            ZeroGridTheme {
+            // Collect the theme state from DataStore
+            val themeMode by themePreferenceManager.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
+
+            // Resolve the actual boolean to pass into your theme
+            val isDarkTheme = when (themeMode) {
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+            }
+
+            ZeroGridTheme(darkTheme = isDarkTheme) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

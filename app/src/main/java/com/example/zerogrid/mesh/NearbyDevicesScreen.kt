@@ -31,7 +31,7 @@ import com.example.zerogrid.mesh.engine.MeshEngine
 import com.example.zerogrid.mesh.engine.MeshNode
 import com.example.zerogrid.navigation.Screen
 import com.example.zerogrid.navigation.ZeroGridBottomBar
-import com.example.zerogrid.ui.theme.*
+import com.example.zerogrid.ui.theme.ZeroGridTheme
 
 @Composable
 fun NearbyDevicesScreen(
@@ -40,6 +40,7 @@ fun NearbyDevicesScreen(
     onOpenPeerDetails: (String) -> Unit = {},
     onOpenPeerChat: (String) -> Unit = {}
 ) {
+    val colors = ZeroGridTheme.colors
     var selectedFilter by remember { mutableStateOf("All") }
     val meshEngine = MeshEngine.getInstance(LocalContext.current)
     val peers by meshEngine.connectedPeers.collectAsState()
@@ -54,7 +55,7 @@ fun NearbyDevicesScreen(
     }
 
     Scaffold(
-        containerColor = DarkBackground,
+        containerColor = colors.background,
         topBar = { NearbyTopBar(onBackClick = onBackClick) },
         bottomBar = { ZeroGridBottomBar(currentScreen = Screen.MESH, onNavigate = onNavigate) }
     ) { paddingValues ->
@@ -84,10 +85,11 @@ fun NearbyDevicesScreen(
 
 @Composable
 private fun NearbyTopBar(onBackClick: () -> Unit = {}) {
+    val colors = ZeroGridTheme.colors
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(DarkBackground)
+            .background(colors.background)
             .statusBarsPadding()
     ) {
         Row(
@@ -102,14 +104,14 @@ private fun NearbyTopBar(onBackClick: () -> Unit = {}) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                         contentDescription = "Back",
-                        tint = StatusActive,
+                        tint = colors.primary,
                         modifier = Modifier.size(24.dp)
                     )
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Nearby Devices",
-                    color = StatusActive,
+                    color = colors.primary,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold
                 )
@@ -118,62 +120,63 @@ private fun NearbyTopBar(onBackClick: () -> Unit = {}) {
                 Icon(
                     imageVector = Icons.Outlined.Search,
                     contentDescription = "Search",
-                    tint = StatusActive,
+                    tint = colors.primary,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(20.dp))
                 Icon(
                     imageVector = Icons.Outlined.MoreVert,
                     contentDescription = "More",
-                    tint = StatusActive,
+                    tint = colors.primary,
                     modifier = Modifier.size(24.dp)
                 )
             }
         }
-        HorizontalDivider(color = DividerColor, thickness = 1.dp)
+        HorizontalDivider(color = colors.divider, thickness = 1.dp)
     }
 }
 
 @Composable
 private fun MeshDiscoveryCard(devicesFound: Int) {
+    val colors = ZeroGridTheme.colors
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = colors.cardBackground),
         shape = RoundedCornerShape(16.dp)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(8.dp).background(StatusActive, CircleShape))
+                Box(modifier = Modifier.size(8.dp).background(colors.primary, CircleShape))
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Mesh Discovery Active",
-                    color = StatusActive,
+                    color = colors.primary,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold
                 )
             }
             Text(
                 text = "Scanning for nearby ZeroGrid devices...",
-                color = TextSecondary,
+                color = colors.textSecondary,
                 fontSize = 13.sp,
                 fontFamily = FontFamily.Monospace,
                 modifier = Modifier.padding(top = 4.dp, bottom = 16.dp)
             )
-            HorizontalDivider(color = DividerColor, thickness = 1.dp)
+            HorizontalDivider(color = colors.divider, thickness = 1.dp)
             Spacer(modifier = Modifier.height(16.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Column {
-                    Text(text = "DEVICES FOUND", color = TextSecondary, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    Text(text = "DEVICES FOUND", color = colors.textSecondary, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "$devicesFound", color = StatusActive, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "$devicesFound", color = colors.primary, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text(text = "PROTOCOL", color = TextSecondary, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    Text(text = "PROTOCOL", color = colors.textSecondary, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "BLE + Wi-Fi Direct", color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "BLE + Wi-Fi Direct", color = colors.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -182,19 +185,20 @@ private fun MeshDiscoveryCard(devicesFound: Int) {
 
 @Composable
 private fun RadarGraphicCard(peersCount: Int) {
+    val colors = ZeroGridTheme.colors
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .height(180.dp),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = colors.cardBackground),
         shape = RoundedCornerShape(16.dp)
     ) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Canvas(modifier = Modifier.fillMaxSize()) {
                 val center = Offset(size.width / 2, size.height / 2)
-                drawCircle(color = SurfaceDarker, radius = 40.dp.toPx(), center = center)
-                drawCircle(color = DividerColor, radius = 65.dp.toPx(), center = center, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1f))
-                drawCircle(color = DividerColor.copy(alpha = 0.5f), radius = 90.dp.toPx(), center = center, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1f))
+                drawCircle(color = colors.surfaceNested, radius = 40.dp.toPx(), center = center)
+                drawCircle(color = colors.divider, radius = 65.dp.toPx(), center = center, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1f))
+                drawCircle(color = colors.divider.copy(alpha = 0.5f), radius = 90.dp.toPx(), center = center, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1f))
 
                 // Draw blips for connected peers
                 if (peersCount > 0) {
@@ -204,21 +208,21 @@ private fun RadarGraphicCard(peersCount: Int) {
                         val angle = i * angleStep
                         val x = center.x + (radiusPx * Math.cos(angle)).toFloat()
                         val y = center.y + (radiusPx * Math.sin(angle)).toFloat()
-                        drawCircle(color = StatusActive, radius = 5.dp.toPx(), center = Offset(x, y))
+                        drawCircle(color = colors.primary, radius = 5.dp.toPx(), center = Offset(x, y))
                     }
                 }
             }
             Box(
                 modifier = Modifier
                     .size(48.dp)
-                    .background(SurfaceDarker, CircleShape)
-                    .border(1.dp, if (peersCount > 0) StatusActive else TextSecondary, CircleShape),
+                    .background(colors.surfaceNested, CircleShape)
+                    .border(1.dp, if (peersCount > 0) colors.primary else colors.textSecondary, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.PhoneAndroid,
                     contentDescription = "Device",
-                    tint = if (peersCount > 0) StatusActive else TextSecondary,
+                    tint = if (peersCount > 0) colors.primary else colors.textSecondary,
                     modifier = Modifier.size(24.dp)
                 )
             }
@@ -228,6 +232,7 @@ private fun RadarGraphicCard(peersCount: Int) {
 
 @Composable
 private fun FilterChipsRow(selected: String, onSelected: (String) -> Unit) {
+    val colors = ZeroGridTheme.colors
     val filters = listOf("All", "Direct", "2 Hops", "Relay")
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -241,8 +246,8 @@ private fun FilterChipsRow(selected: String, onSelected: (String) -> Unit) {
                     .height(36.dp)
                     .weight(1f),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isSelected) StatusActive else CardBackground,
-                    contentColor = if (isSelected) Color.Black else TextSecondary
+                    containerColor = if (isSelected) colors.primary else colors.cardBackground,
+                    contentColor = if (isSelected) (if (colors.isDark) Color.Black else Color.White) else colors.textSecondary
                 ),
                 shape = RoundedCornerShape(18.dp),
                 contentPadding = PaddingValues(0.dp)
@@ -263,6 +268,7 @@ private fun DevicesListSection(
     onOpenPeerDetails: (String) -> Unit,
     onOpenPeerChat: (String) -> Unit
 ) {
+    val colors = ZeroGridTheme.colors
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (peers.isEmpty()) {
             Box(
@@ -275,13 +281,13 @@ private fun DevicesListSection(
                     Icon(
                         imageVector = Icons.Outlined.Devices,
                         contentDescription = null,
-                        tint = TextSecondary,
+                        tint = colors.textSecondary,
                         modifier = Modifier.size(32.dp)
                     )
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text(text = "No mesh devices discovered yet", color = TextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text(text = "No mesh devices discovered yet", color = colors.textPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = "Bring another ZeroGrid device closer or ensure radio is enabled.", color = TextSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                    Text(text = "Bring another ZeroGrid device closer or ensure radio is enabled.", color = colors.textSecondary, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                 }
             }
         } else {
@@ -310,9 +316,10 @@ private fun DeviceCard(
     onViewClick: () -> Unit,
     onChatClick: () -> Unit
 ) {
+    val colors = ZeroGridTheme.colors
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = CardBackground),
+        colors = CardDefaults.cardColors(containerColor = colors.cardBackground),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
@@ -329,14 +336,14 @@ private fun DeviceCard(
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = StatusActive,
+                    tint = colors.primary,
                     modifier = Modifier.size(28.dp)
                 )
                 Spacer(modifier = Modifier.width(16.dp))
                 Column {
-                    Text(text = name, color = TextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(text = name, color = colors.textPrimary, fontSize = 16.sp, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(2.dp))
-                    Text(text = status, color = TextSecondary, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                    Text(text = status, color = colors.textSecondary, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
 
                     if (signalBars != null) {
                         Spacer(modifier = Modifier.height(6.dp))
@@ -347,7 +354,7 @@ private fun DeviceCard(
                                         .width(10.dp)
                                         .height(4.dp)
                                         .background(
-                                            if (i <= signalBars) StatusActive else SurfaceDarker,
+                                            if (i <= signalBars) colors.primary else colors.surfaceNested,
                                             RoundedCornerShape(2.dp)
                                         )
                                 )
@@ -357,7 +364,7 @@ private fun DeviceCard(
 
                     if (subStatus != null) {
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text(text = subStatus, color = TextSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                        Text(text = subStatus, color = colors.textSecondary, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                     }
                 }
             }
@@ -368,8 +375,8 @@ private fun DeviceCard(
                 OutlinedButton(
                     onClick = onViewClick,
                     shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = TextPrimary),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, DividerColor),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.textPrimary),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, colors.divider),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(text = "View", fontSize = 13.sp)
@@ -378,7 +385,10 @@ private fun DeviceCard(
                 Button(
                     onClick = onChatClick,
                     shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = StatusActive, contentColor = Color.Black),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = colors.primary,
+                        contentColor = if (colors.isDark) Color.Black else Color.White
+                    ),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
                     Text(text = "Chat", fontSize = 13.sp, fontWeight = FontWeight.Bold)
@@ -387,8 +397,6 @@ private fun DeviceCard(
         }
     }
 }
-
-
 
 @Composable
 fun ZeroGridNearbyDevicesScreen() = NearbyDevicesScreen()

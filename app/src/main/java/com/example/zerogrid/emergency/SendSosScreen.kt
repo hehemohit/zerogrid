@@ -47,7 +47,10 @@ fun SendSosScreen(onNavigate: (Screen) -> Unit = {}) {
     val meshEngine = MeshEngine.getInstance(context)
     val coroutineScope = rememberCoroutineScope()
     val sosDispatcher = remember { UnifiedSosDispatcher(context) }
-    var selectedType by remember { mutableStateOf("Medical") }
+    var selectedType by remember { mutableStateOf("WATERLOGGING") }
+    var waterDepthCm by remember { mutableStateOf(30) }
+    var selectedPassability by remember { mutableStateOf("ALL_PASSABLE") }
+    val isWaterCategory = selectedType in setOf("WATERLOGGING", "SUBMERGED_UNDERPASS", "DRAINAGE_OVERFLOW")
     var emergencyMessage by remember { mutableStateOf("") }
     var locationSharingEnabled by remember { mutableStateOf(true) }
     // Live GPS state shown in the location card
@@ -103,9 +106,9 @@ fun SendSosScreen(onNavigate: (Screen) -> Unit = {}) {
                             EmergencyBroadcastWarningCard()
                             Spacer(modifier = Modifier.height(20.dp))
 
-                            // Emergency Type Section
+                            // Emergency / Hazard Incident Type Section
                             Text(
-                                text = "EMERGENCY TYPE",
+                                text = "INCIDENT TYPE",
                                 color = colors.textSecondary,
                                 fontSize = 11.sp,
                                 fontFamily = FontFamily.Monospace,
@@ -113,6 +116,26 @@ fun SendSosScreen(onNavigate: (Screen) -> Unit = {}) {
                             )
                             Spacer(modifier = Modifier.height(10.dp))
                             EmergencyTypeChipsRow(selected = selectedType, onSelected = { selectedType = it })
+
+                            // Environmental Hazard Controls (conditional)
+                            AnimatedVisibility(
+                                visible = isWaterCategory,
+                                enter = expandVertically() + fadeIn(),
+                                exit = shrinkVertically() + fadeOut()
+                            ) {
+                                Column {
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    WaterDepthCard(
+                                        waterDepthCm = waterDepthCm,
+                                        onDepthChange = { waterDepthCm = it }
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    PassabilitySelectorCard(
+                                        selectedPassability = selectedPassability,
+                                        onPassabilityChange = { selectedPassability = it }
+                                    )
+                                }
+                            }
                             Spacer(modifier = Modifier.height(20.dp))
 
                             // Emergency Message Input Section
@@ -217,7 +240,9 @@ fun SendSosScreen(onNavigate: (Screen) -> Unit = {}) {
                                                 lng = lng,
                                                 accuracy = accuracy,
                                                 category = selectedType,
-                                                message = emergencyMessage
+                                                message = emergencyMessage,
+                                                waterDepthCm = if (isWaterCategory) waterDepthCm else 0,
+                                                passability = if (isWaterCategory) selectedPassability else "ALL_PASSABLE"
                                             )
                                         } finally {
                                             isSubmitting = false
@@ -230,14 +255,14 @@ fun SendSosScreen(onNavigate: (Screen) -> Unit = {}) {
                                     .fillMaxWidth()
                                     .height(56.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = colors.accentRed,
-                                    disabledContainerColor = colors.accentRed.copy(alpha = 0.5f)
+                                    containerColor = if (isWaterCategory) Color(0xFF1E88E5) else colors.accentRed,
+                                    disabledContainerColor = (if (isWaterCategory) Color(0xFF1E88E5) else colors.accentRed).copy(alpha = 0.5f)
                                 ),
                                 shape = RoundedCornerShape(16.dp)
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "SOS",
+                                        text = if (isWaterCategory) "HAZARD" else "SOS",
                                         color = Color.White,
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold,
@@ -245,7 +270,7 @@ fun SendSosScreen(onNavigate: (Screen) -> Unit = {}) {
                                     )
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = if (isSubmitting) "DISPATCHING..." else "BROADCAST SOS",
+                                        text = if (isSubmitting) "DISPATCHING..." else if (isWaterCategory) "BROADCAST HAZARD" else "BROADCAST SOS",
                                         color = Color.White,
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold,
@@ -446,31 +471,195 @@ private fun EmergencyBroadcastWarningCard() {
 @Composable
 private fun EmergencyTypeChipsRow(selected: String, onSelected: (String) -> Unit) {
     val colors = ZeroGridTheme.colors
-    val types = listOf("Medical", "Trapped", "Fire", "Missing")
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        types.forEach { type ->
-            val isSelected = type == selected
-            Button(
-                onClick = { onSelected(type) },
-                modifier = Modifier
-                    .height(40.dp)
-                    .weight(1f),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isSelected) colors.primary else colors.cardBackground,
-                    contentColor = if (isSelected) (if (colors.isDark) Color.Black else Color.White) else colors.textSecondary
-                ),
-                shape = RoundedCornerShape(20.dp),
-                border = if (!isSelected) BorderStroke(1.dp, colors.divider) else null,
-                contentPadding = PaddingValues(0.dp)
+    val types = listOf(
+        "WATERLOGGING" to "🌊 Waterlogging",
+        "SUBMERGED_UNDERPASS" to "🚗 Submerged Pass",
+        "DRAINAGE_OVERFLOW" to "🌀 Drain Overflow",
+        "HEATWAVE" to "🌡️ Heatwave Alert",
+        "FALLEN_GRID" to "⚡ Fallen Grid Line",
+        "MEDICAL" to "🚨 Medical SOS"
+    )
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        types.chunked(2).forEach { rowPair ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text(
-                    text = type,
-                    fontSize = 13.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                rowPair.forEach { (categoryKey, displayLabel) ->
+                    val isSelected = categoryKey == selected
+                    Button(
+                        onClick = { onSelected(categoryKey) },
+                        modifier = Modifier
+                            .height(44.dp)
+                            .weight(1f),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isSelected) colors.primary else colors.cardBackground,
+                            contentColor = if (isSelected) (if (colors.isDark) Color.Black else Color.White) else colors.textPrimary
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        border = if (!isSelected) BorderStroke(1.dp, colors.divider) else null,
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Text(
+                            text = displayLabel,
+                            fontSize = 12.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            maxLines = 1
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun WaterDepthCard(
+    waterDepthCm: Int,
+    onDepthChange: (Int) -> Unit
+) {
+    val colors = ZeroGridTheme.colors
+    val (statusColor, statusLabel) = when {
+        waterDepthCm >= 90 -> Pair(colors.accentRed, "CRITICAL: SUBMERGED")
+        waterDepthCm >= 45 -> Pair(Color(0xFFFF9800), "DANGER: HIGH WATER")
+        waterDepthCm >= 15 -> Pair(Color(0xFFFFC107), "CAUTION: WATERLOGGED")
+        else -> Pair(Color(0xFF4CAF50), "MINOR: NORMAL RUNOFF")
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = colors.cardBackground),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, colors.divider)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "WATER DEPTH (CM)",
+                        color = colors.textSecondary,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = statusLabel,
+                        color = statusColor,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = statusColor.copy(alpha = 0.15f),
+                    border = BorderStroke(1.dp, statusColor.copy(alpha = 0.5f))
+                ) {
+                    Text(
+                        text = "$waterDepthCm cm",
+                        color = statusColor,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Slider(
+                value = waterDepthCm.toFloat(),
+                onValueChange = { onDepthChange(it.toInt()) },
+                valueRange = 0f..150f,
+                steps = 29,
+                colors = SliderDefaults.colors(
+                    thumbColor = statusColor,
+                    activeTrackColor = statusColor,
+                    inactiveTrackColor = colors.divider
                 )
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("0 cm", fontSize = 10.sp, color = colors.textSecondary, fontFamily = FontFamily.Monospace)
+                Text("15 cm (Yellow)", fontSize = 10.sp, color = Color(0xFFFFC107), fontFamily = FontFamily.Monospace)
+                Text("45 cm (Orange)", fontSize = 10.sp, color = Color(0xFFFF9800), fontFamily = FontFamily.Monospace)
+                Text("90+ cm (Red)", fontSize = 10.sp, color = colors.accentRed, fontFamily = FontFamily.Monospace)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PassabilitySelectorCard(
+    selectedPassability: String,
+    onPassabilityChange: (String) -> Unit
+) {
+    val colors = ZeroGridTheme.colors
+    val options = listOf(
+        "ALL_PASSABLE" to "All Passable",
+        "TWO_WHEELER_ONLY" to "2-Wheeler Only",
+        "FOUR_WHEELER_ONLY" to "SUV / 4WD Only",
+        "IMPASSABLE" to "⛔ Impassable"
+    )
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = colors.cardBackground),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, colors.divider)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = "ROAD PASSABILITY CONDITION",
+                color = colors.textSecondary,
+                fontSize = 11.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                options.chunked(2).forEach { rowOptions ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        rowOptions.forEach { (key, label) ->
+                            val isSelected = selectedPassability == key
+                            val itemColor = if (key == "IMPASSABLE") colors.accentRed else colors.primary
+                            Button(
+                                onClick = { onPassabilityChange(key) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(42.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isSelected) itemColor else colors.cardBackground,
+                                    contentColor = if (isSelected) (if (colors.isDark && itemColor != colors.accentRed) Color.Black else Color.White) else colors.textPrimary
+                                ),
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, if (isSelected) itemColor else colors.divider),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }

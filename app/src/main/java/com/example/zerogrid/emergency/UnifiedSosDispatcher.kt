@@ -36,33 +36,50 @@ class UnifiedSosDispatcher(
         lng: Double? = null,
         accuracy: Float? = null,
         category: String = "OTHER",
-        message: String = ""
+        message: String = "",
+        waterDepthCm: Int = 0,
+        passability: String = "ALL_PASSABLE"
     ): SosDispatchResult {
         // 1. Local Mesh Broadcast (always executed)
         val sessionManager = com.zerogrid.mesh.app.ui.UserSessionManager.getInstance(context)
         val displayName = sessionManager.getUserDisplayName().ifBlank { sessionManager.getUserName() }
+        val isHazard = category.trim().uppercase() in setOf(
+            "WATERLOGGING", "SUBMERGED_UNDERPASS", "DRAINAGE_OVERFLOW", "HEATWAVE", "FALLEN_GRID"
+        )
         val meshDispatched = try {
-            meshEngine.triggerSosBeacon(
-                category = category,
-                message = message,
-                lat = lat,
-                lon = lng,
-                accuracy = accuracy,
-                senderName = displayName.ifBlank { null }
-            )
-            Log.d(TAG, "Mesh SOS beacon successfully broadcasted.")
+            if (isHazard) {
+                meshEngine.triggerHazardBeacon(
+                    category = category,
+                    waterDepthCm = waterDepthCm,
+                    passability = passability,
+                    message = message,
+                    lat = lat,
+                    lon = lng,
+                    accuracy = accuracy,
+                    senderName = displayName.ifBlank { null }
+                )
+            } else {
+                meshEngine.triggerSosBeacon(
+                    category = category,
+                    message = message,
+                    lat = lat,
+                    lon = lng,
+                    accuracy = accuracy,
+                    senderName = displayName.ifBlank { null }
+                )
+            }
+            Log.d(TAG, "Mesh beacon successfully broadcasted (isHazard=$isHazard).")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to broadcast SOS to local mesh", e)
+            Log.e(TAG, "Failed to broadcast to local mesh", e)
             false
         }
 
         // 2. Format Category to match backend schema
         val normalizedCategory = when (category.trim().uppercase()) {
-            "MEDICAL" -> "MEDICAL"
-            "DISASTER" -> "DISASTER"
-            "TRAPPED" -> "TRAPPED"
-            "SECURITY" -> "SECURITY"
+            "WATERLOGGING", "SUBMERGED_UNDERPASS", "DRAINAGE_OVERFLOW",
+            "HEATWAVE", "FALLEN_GRID", "MEDICAL",
+            "DISASTER", "TRAPPED", "SECURITY" -> category.trim().uppercase()
             else -> "OTHER"
         }
 
@@ -74,9 +91,11 @@ class UnifiedSosDispatcher(
             lng = lng ?: 0.0,
             accuracy = accuracy,
             category = normalizedCategory,
-            message = message.ifBlank { "Emergency SOS triggered" },
+            message = message.ifBlank { if (isHazard) "Hazard beacon reported" else "Emergency SOS triggered" },
             transport = "BOTH",
-            batteryPercentage = batteryPercentage
+            batteryPercentage = batteryPercentage,
+            waterDepthCm = if (isHazard && waterDepthCm > 0) waterDepthCm else null,
+            passability = if (isHazard) passability else null
         )
 
         // 3. Online Rescue Network Dispatch

@@ -62,13 +62,16 @@ data class SosEventDto(
     @SerializedName("message")             val message: String? = null,
     @SerializedName("transport")           val transport: String = "BOTH",
     @SerializedName("batteryPercentage")   val batteryPercentage: Int? = null,
-    @SerializedName("status")             val status: String = "ACTIVE",
-    @SerializedName("acknowledgedBy")     val acknowledgedBy: String? = null,
+    @SerializedName("status")              val status: String = "ACTIVE",
+    @SerializedName("acknowledgedBy")      val acknowledgedBy: String? = null,
     @SerializedName("acknowledgedByUsers") val acknowledgedByUsers: List<SosAckEntryDto> = emptyList(),
-    @SerializedName("isAcknowledgedByMe") val isAcknowledgedByMe: Boolean = false,
-    @SerializedName("resolvedBy")         val resolvedBy: String? = null,
-    @SerializedName("createdAt")          val createdAt: String? = null,
-    @SerializedName("updatedAt")          val updatedAt: String? = null
+    @SerializedName("isAcknowledgedByMe")  val isAcknowledgedByMe: Boolean = false,
+    @SerializedName("resolvedBy")          val resolvedBy: String? = null,
+    @SerializedName("createdAt")           val createdAt: String? = null,
+    @SerializedName("updatedAt")           val updatedAt: String? = null,
+    @SerializedName("waterDepthCm")        val waterDepthCm: Int? = null,
+    @SerializedName("passability")         val passability: String? = null,
+    @SerializedName("packetId")            val packetId: String? = null
 )
 
 data class SosDispatchResponse(
@@ -84,6 +87,43 @@ data class SosActiveResponse(
     @SerializedName("events") val events: List<SosEventDto> = emptyList()
 )
 
+// ── Data Mule & Agentic Detour DTOs ─────────────────────────────────────────
+
+data class MulePacketDto(
+    @SerializedName("packetId")     val packetId: String,
+    @SerializedName("lat")          val lat: Double,
+    @SerializedName("lng")          val lng: Double,
+    @SerializedName("category")     val category: String,
+    @SerializedName("waterDepthCm") val waterDepthCm: Int = 0,
+    @SerializedName("passability")  val passability: String = "ALL_PASSABLE",
+    @SerializedName("message")      val message: String = "",
+    @SerializedName("transport")    val transport: String = "MESH",
+    @SerializedName("ts")           val ts: Long = System.currentTimeMillis()
+)
+
+data class BulkMuleRequest(
+    @SerializedName("packets") val packets: List<MulePacketDto>
+)
+
+data class BulkMuleResponse(
+    @SerializedName("accepted")   val accepted: Int = 0,
+    @SerializedName("duplicates") val duplicates: Int = 0
+)
+
+data class DetourRequest(
+    @SerializedName("originLat") val originLat: Double,
+    @SerializedName("originLng") val originLng: Double,
+    @SerializedName("destLat")   val destLat: Double,
+    @SerializedName("destLng")   val destLng: Double
+)
+
+data class DetourResponse(
+    @SerializedName("safeRouteGeoJson")    val safeRouteGeoJson: String? = null,
+    @SerializedName("warningMessage")      val warningMessage: String = "",
+    @SerializedName("avoidedHazardsCount") val avoidedHazardsCount: Int = 0,
+    @SerializedName("agentReasoning")      val agentReasoning: String? = null
+)
+
 // ── Retrofit Service ─────────────────────────────────────────────────────────
 
 interface SosApiService {
@@ -92,6 +132,16 @@ interface SosApiService {
     suspend fun dispatchSos(
         @Body body: SosDispatchRequest
     ): Response<SosDispatchResponse>
+
+    @POST("${ApiConstants.SOS}/bulk-mule")
+    suspend fun bulkMule(
+        @Body body: BulkMuleRequest
+    ): Response<BulkMuleResponse>
+
+    @POST("api/routes/detour")
+    suspend fun requestDetour(
+        @Body body: DetourRequest
+    ): Response<DetourResponse>
 
     @GET("${ApiConstants.SOS}/active")
     suspend fun getActiveSos(): Response<SosActiveResponse>

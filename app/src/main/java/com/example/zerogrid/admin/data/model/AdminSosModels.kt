@@ -128,6 +128,10 @@ data class AdminSosEventDto(
     val resolvedBy: Any? = null,
     @SerializedName("notes")
     val notes: List<SosNoteDto> = emptyList(),
+    @SerializedName("waterDepthCm")
+    val waterDepthCm: Int? = null,
+    @SerializedName("passability")
+    val passability: String? = null,
     @SerializedName("createdAt")
     val createdAt: String? = null,
     @SerializedName("updatedAt")

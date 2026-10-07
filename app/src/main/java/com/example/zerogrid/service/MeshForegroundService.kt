@@ -30,8 +30,10 @@ class MeshForegroundService : Service() {
         private const val CHANNEL_ID = "zerogrid_mesh_channel"
         private const val SOS_CHANNEL_ID = "zerogrid_sos_channel"
         private const val MESSAGES_CHANNEL_ID = "zerogrid_chat_channel"
+        private const val HAZARD_CHANNEL_ID = "zerogrid_hazard_channel"
         private const val NOTIFICATION_ID = 1001
         private const val SOS_NOTIFICATION_ID = 9999
+        private const val HAZARD_NOTIFICATION_ID = 8888
 
         fun startService(context: Context) {
             try {
@@ -139,6 +141,50 @@ class MeshForegroundService : Service() {
                 notificationManager.notify(SOS_NOTIFICATION_ID, notification)
             } catch (e: Exception) {
                 Log.e(TAG, "Error showing SOS notification", e)
+            }
+        }
+
+        fun showHazardNotification(context: Context, title: String, payload: String) {
+            try {
+                val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    val channel = NotificationChannel(
+                        HAZARD_CHANNEL_ID,
+                        "ZeroGrid Environmental Hazard Alerts",
+                        NotificationManager.IMPORTANCE_HIGH
+                    ).apply {
+                        description = "High-priority alerts for floods, waterlogging, and extreme weather"
+                        enableVibration(true)
+                        enableLights(true)
+                    }
+                    notificationManager.createNotificationChannel(channel)
+                }
+
+                val intent = Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                }
+                val pendingIntent = PendingIntent.getActivity(
+                    context,
+                    HAZARD_NOTIFICATION_ID,
+                    intent,
+                    PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+                )
+
+                val notification = NotificationCompat.Builder(context, HAZARD_CHANNEL_ID)
+                    .setContentTitle(title)
+                    .setContentText(payload)
+                    .setStyle(NotificationCompat.BigTextStyle().bigText(payload))
+                    .setSmallIcon(android.R.drawable.stat_notify_error)
+                    .setPriority(NotificationCompat.PRIORITY_HIGH)
+                    .setCategory(NotificationCompat.CATEGORY_ALARM)
+                    .setContentIntent(pendingIntent)
+                    .setAutoCancel(true)
+                    .build()
+
+                notificationManager.notify(HAZARD_NOTIFICATION_ID, notification)
+            } catch (e: Exception) {
+                Log.e(TAG, "Error showing hazard notification", e)
             }
         }
     }

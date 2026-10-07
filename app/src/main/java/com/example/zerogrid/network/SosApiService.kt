@@ -17,7 +17,10 @@ data class SosDispatchRequest(
     @SerializedName("category")          val category: String = "OTHER",
     @SerializedName("message")           val message: String? = null,
     @SerializedName("transport")         val transport: String = "BOTH",
-    @SerializedName("batteryPercentage") val batteryPercentage: Int? = null
+    @SerializedName("batteryPercentage") val batteryPercentage: Int? = null,
+    @SerializedName("waterDepthCm")      val waterDepthCm: Int? = null,
+    @SerializedName("passability")       val passability: String? = null,
+    @SerializedName("packetId")          val packetId: String? = null
 )
 
 /**

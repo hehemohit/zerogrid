@@ -83,6 +83,17 @@ class MeshRoutingEngine(
             lastPeerDiscoveryReceived[packet.senderId] = now
         }
 
+        // 1c. HAZARD_BEACON 3-Hour TTL Guard:
+        // Environmental and flood hazards change rapidly. Drop hazard beacons older than 3 hours
+        // so we do not relay stale flood data across the mesh or trigger false warnings.
+        if (packet.type == PacketType.HAZARD_BEACON) {
+            val age = System.currentTimeMillis() - packet.timestamp
+            if (age > 10_800_000L || age < -300_000L) {
+                Log.d(TAG, "Dropped stale HAZARD_BEACON ${packet.packetId} (age: ${age / 1000}s)")
+                return
+            }
+        }
+
         val sourceName = sourceTransport?.transportName ?: "Local"
         Log.d(
             TAG,

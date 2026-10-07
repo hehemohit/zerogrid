@@ -24,6 +24,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.security.MessageDigest
 import java.util.UUID
+import android.location.Location
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import com.example.zerogrid.emergency.SosUploadWorker
+import com.example.zerogrid.location.LocationHelper
+import com.example.zerogrid.network.SosDispatchRequest
 import com.example.zerogrid.service.MeshForegroundService
 
 /**
@@ -107,6 +113,15 @@ class MeshEngine private constructor(private val context: Context) {
 
     private val _sosAlerts = MutableStateFlow<List<MeshPacket>>(emptyList())
     val sosAlerts: StateFlow<List<MeshPacket>> = _sosAlerts.asStateFlow()
+
+    private val _hazardAlerts = MutableStateFlow<List<HazardAlert>>(emptyList())
+    val hazardAlerts: StateFlow<List<HazardAlert>> = _hazardAlerts.asStateFlow()
+
+    private val _proximityWarning = MutableStateFlow<ProximityWarning?>(null)
+    val proximityWarning: StateFlow<ProximityWarning?> = _proximityWarning.asStateFlow()
+
+    private val _dataMuleQueueSize = MutableStateFlow(0)
+    val dataMuleQueueSize: StateFlow<Int> = _dataMuleQueueSize.asStateFlow()
 
     private val _acknowledgedAlertIds = MutableStateFlow<Set<String>>(
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -250,15 +265,38 @@ class MeshEngine private constructor(private val context: Context) {
             }
         }
 
-        // 15-second background retry loop for paused messages in the store-and-forward pipeline
+        // 15-second background loop for paused messages, hazard cache pruning, and proximity warnings
         scope.launch {
             while (true) {
                 delay(15_000L)
                 try {
                     retryPausedMessages()
+                    pruneExpiredHazards()
+                    val myLoc = LocationHelper.getLastKnownLocation(context)
+                    if (myLoc != null) {
+                        computeProximityWarning(myLoc.lat, myLoc.lng)
+                    }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Exception in 15s retry loop", e)
+                    Log.e(TAG, "Exception in 15s maintenance loop", e)
                 }
+            }
+        }
+
+        // Live reactive observer for opportunistic Data Mule queue in WorkManager
+        scope.launch {
+            try {
+                WorkManager.getInstance(context)
+                    .getWorkInfosByTagFlow("SOS_OFFLINE_UPLOAD")
+                    .collect { workList ->
+                        val pendingCount = workList.count {
+                            it.state == WorkInfo.State.ENQUEUED ||
+                            it.state == WorkInfo.State.RUNNING ||
+                            it.state == WorkInfo.State.BLOCKED
+                        }
+                        _dataMuleQueueSize.value = pendingCount
+                    }
+            } catch (e: Exception) {
+                Log.w(TAG, "Unable to observe WorkManager Data Mule queue", e)
             }
         }
     }
@@ -598,6 +636,111 @@ class MeshEngine private constructor(private val context: Context) {
     }
 
     /**
+     * Broadcasts an environmental hazard alert (e.g. waterlogging, submerged underpass, heatwave)
+     * over the mesh network and updates local state.
+     */
+    fun triggerHazardBeacon(
+        category: String,
+        waterDepthCm: Int = 0,
+        passability: String = "ALL_PASSABLE",
+        message: String = "",
+        lat: Double? = null,
+        lon: Double? = null,
+        accuracy: Float? = null,
+        preferredTransport: String? = null,
+        senderName: String? = null
+    ): MeshPacket {
+        val effectiveSenderName = senderName ?: _displayName.value.ifBlank { null }
+        val payload = MeshPacket.buildHazardPayload(
+            category = category,
+            waterDepthCm = waterDepthCm,
+            passability = passability,
+            message = message,
+            lat = lat ?: 0.0,
+            lng = lon ?: 0.0,
+            accuracy = accuracy,
+            senderName = effectiveSenderName
+        )
+        val packet = MeshPacket(
+            senderId = localNodeId,
+            recipientId = MeshPacket.BROADCAST_ADDRESS,
+            ttl = 10,
+            type = PacketType.HAZARD_BEACON,
+            payload = payload,
+        )
+        // Transmit to mesh peers
+        routingEngine.sendOutboundPacket(packet, preferredTransport)
+
+        // Store locally in _hazardAlerts
+        val alert = packet.toHazardAlert() ?: HazardAlert(
+            packetId = packet.packetId,
+            senderId = packet.senderId,
+            category = category,
+            waterDepthCm = waterDepthCm,
+            passability = passability,
+            message = message,
+            lat = lat ?: 0.0,
+            lng = lon ?: 0.0,
+            accuracy = accuracy,
+            senderName = effectiveSenderName,
+            timestamp = packet.timestamp
+        )
+
+        synchronized(stateLock) {
+            val current = _hazardAlerts.value.toMutableList()
+            if (current.none { it.packetId == alert.packetId }) {
+                current.add(0, alert)
+                val now = System.currentTimeMillis()
+                _hazardAlerts.value = current.filter { now - it.timestamp <= 10_800_000L }
+            }
+        }
+
+        return packet
+    }
+
+    /**
+     * Removes hazard alerts older than 3 hours (10,800,000 ms).
+     */
+    fun pruneExpiredHazards() {
+        val now = System.currentTimeMillis()
+        synchronized(stateLock) {
+            val current = _hazardAlerts.value
+            val valid = current.filter { now - it.timestamp <= 10_800_000L }
+            if (valid.size != current.size) {
+                _hazardAlerts.value = valid
+            }
+        }
+    }
+
+    /**
+     * Computes proximity to active hazards within 500m geofence and updates [_proximityWarning].
+     */
+    fun computeProximityWarning(userLat: Double, userLng: Double) {
+        val activeHazards = _hazardAlerts.value
+        val severeHazards = activeHazards.filter {
+            it.waterDepthCm >= 30 || it.passability == "IMPASSABLE" || it.category == "SUBMERGED_UNDERPASS"
+        }
+        val nearest = severeHazards.mapNotNull { h ->
+            val results = FloatArray(1)
+            Location.distanceBetween(userLat, userLng, h.lat, h.lng, results)
+            val d = results[0]
+            if (d <= 500f) Pair(h, d) else null
+        }.minByOrNull { it.second }
+
+        if (nearest != null) {
+            _proximityWarning.value = ProximityWarning(
+                alertId = nearest.first.packetId,
+                category = nearest.first.category,
+                distanceMeters = nearest.second,
+                waterDepthCm = nearest.first.waterDepthCm,
+                passability = nearest.first.passability
+            )
+        } else {
+            _proximityWarning.value = null
+        }
+    }
+
+    /**
      * Injects a cloud/FCM SOS alert received for an emergency contact or remote event into local state.
      * Allows Emergency Center to log and track cloud-dispatched emergencies alongside mesh alerts.
      * Tagged with isCloud=true in the JSON payload so the UI can display it in the "Relative / Family SOS" section.
@@ -694,6 +837,94 @@ class MeshEngine private constructor(private val context: Context) {
                         packet.senderId,
                         packet.payload
                     )
+
+                    // Data Mule: Enqueue remote SOS into WorkManager for opportunistic cloud upload
+                    val coords = packet.getSosCoordinates()
+                    if (coords != null && (coords.first != 0.0 || coords.second != 0.0)) {
+                        val muleRequest = SosDispatchRequest(
+                            lat = coords.first,
+                            lng = coords.second,
+                            accuracy = packet.getSosAccuracy(),
+                            category = packet.getSosCategory(),
+                            message = packet.getSosMessage(),
+                            transport = "BLE_MESH_MULE",
+                            packetId = packet.packetId
+                        )
+                        SosUploadWorker.enqueue(context, muleRequest)
+                    }
+                }
+            }
+            PacketType.HAZARD_BEACON -> {
+                if (packet.senderId == localNodeId) return
+
+                // 1. Temporal filter: discard if older than 3 hours (10,800,000 ms)
+                val now = System.currentTimeMillis()
+                if (now - packet.timestamp > 10_800_000L) {
+                    Log.d(TAG, "Dropped expired HAZARD_BEACON ${packet.packetId}")
+                    return
+                }
+
+                val alert = packet.toHazardAlert()
+                var shouldNotify = false
+                if (alert != null) {
+                    synchronized(stateLock) {
+                        val current = _hazardAlerts.value.toMutableList()
+                        if (current.none { it.packetId == alert.packetId }) {
+                            current.add(0, alert)
+                            _hazardAlerts.value = current.filter { now - it.timestamp <= 10_800_000L }
+                            shouldNotify = true
+                        }
+                    }
+
+                    // 2. Proximity & Severity evaluation
+                    val myLoc = LocationHelper.getLastKnownLocation(context)
+                    var distanceM: Float? = null
+                    if (myLoc != null && alert.lat != 0.0 && alert.lng != 0.0) {
+                        val results = FloatArray(1)
+                        Location.distanceBetween(myLoc.lat, myLoc.lng, alert.lat, alert.lng, results)
+                        distanceM = results[0]
+                    }
+
+                    // Update proximity warning if within 500m geofence and severe
+                    if (distanceM != null && distanceM <= 500f &&
+                        (alert.waterDepthCm >= 30 || alert.passability == "IMPASSABLE" || alert.category == "SUBMERGED_UNDERPASS")
+                    ) {
+                        _proximityWarning.value = ProximityWarning(
+                            alertId = alert.packetId,
+                            category = alert.category,
+                            distanceMeters = distanceM,
+                            waterDepthCm = alert.waterDepthCm,
+                            passability = alert.passability
+                        )
+                    }
+
+                    // 3. System heads-up notification for remote hazards
+                    if (shouldNotify) {
+                        val distStr = if (distanceM != null) "${distanceM.toInt()}m away" else "nearby"
+                        val notifTitle = "⚠️ HAZARD ALERT: ${alert.category.replace('_', ' ')}"
+                        val notifMsg = if (alert.waterDepthCm > 0) {
+                            "${alert.waterDepthCm}cm water logged ($distStr)! Passability: ${alert.passability.replace('_', ' ')}"
+                        } else {
+                            "${alert.message.ifBlank { alert.category }} ($distStr)"
+                        }
+                        MeshForegroundService.showHazardNotification(context, notifTitle, notifMsg)
+                    }
+
+                    // 4. Opportunistic Data Mule Enqueue
+                    if (alert.lat != 0.0 || alert.lng != 0.0) {
+                        val muleRequest = SosDispatchRequest(
+                            lat = alert.lat,
+                            lng = alert.lng,
+                            accuracy = alert.accuracy,
+                            category = alert.category,
+                            message = alert.message,
+                            transport = "BLE_MESH_MULE",
+                            waterDepthCm = alert.waterDepthCm,
+                            passability = alert.passability,
+                            packetId = alert.packetId
+                        )
+                        SosUploadWorker.enqueue(context, muleRequest)
+                    }
                 }
             }
             PacketType.DIRECT_MESSAGE -> {

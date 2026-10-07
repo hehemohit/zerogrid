@@ -77,6 +77,16 @@ object LocationHelper {
         return null
     }
 
+    /**
+     * Synchronously returns the best cached last-known location without coroutine suspension.
+     * Ideal for non-blocking proximity calculations and immediate telemetry.
+     */
+    fun getLastKnownLocation(context: Context): LocationResult? {
+        if (!hasPermission(context)) return null
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager ?: return null
+        return getBestCachedLocation(lm)?.toResult()
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
 
     private fun hasPermission(context: Context): Boolean {

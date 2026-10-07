@@ -21,12 +21,15 @@ class SosUploadWorker(
         const val KEY_MESSAGE = "sos_message"
         const val KEY_TRANSPORT = "sos_transport"
         const val KEY_BATTERY = "sos_battery"
+        const val KEY_WATER_DEPTH = "sos_water_depth"
+        const val KEY_PASSABILITY = "sos_passability"
+        const val KEY_PACKET_ID = "sos_packet_id"
 
         /**
-         * Enqueues an offline SOS alert with network constraints and exponential backoff retry.
+         * Enqueues an offline SOS/Hazard alert with network constraints and exponential backoff retry.
          */
         fun enqueue(context: Context, request: SosDispatchRequest) {
-            val inputData = Data.Builder()
+            val builder = Data.Builder()
                 .putDouble(KEY_LAT, request.lat)
                 .putDouble(KEY_LNG, request.lng)
                 .putFloat(KEY_ACCURACY, request.accuracy ?: 0f)
@@ -34,7 +37,16 @@ class SosUploadWorker(
                 .putString(KEY_MESSAGE, request.message ?: "")
                 .putString(KEY_TRANSPORT, request.transport)
                 .putInt(KEY_BATTERY, request.batteryPercentage ?: -1)
-                .build()
+                .putInt(KEY_WATER_DEPTH, request.waterDepthCm ?: -1)
+
+            if (!request.passability.isNullOrBlank()) {
+                builder.putString(KEY_PASSABILITY, request.passability)
+            }
+            if (!request.packetId.isNullOrBlank()) {
+                builder.putString(KEY_PACKET_ID, request.packetId)
+            }
+
+            val inputData = builder.build()
 
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -51,12 +63,18 @@ class SosUploadWorker(
                 .addTag("SOS_OFFLINE_UPLOAD")
                 .build()
 
+            val uniqueWorkName = if (!request.packetId.isNullOrBlank()) {
+                "SOS_OFFLINE_UPLOAD_${request.packetId}"
+            } else {
+                "SOS_OFFLINE_UPLOAD_${System.currentTimeMillis()}_${request.category}"
+            }
+
             WorkManager.getInstance(context).enqueueUniqueWork(
-                "SOS_OFFLINE_UPLOAD_UNIQUE",
+                uniqueWorkName,
                 ExistingWorkPolicy.KEEP,
                 workRequest
             )
-            Log.d(TAG, "Offline SOS request enqueued in WorkManager with unique policy.")
+            Log.d(TAG, "Offline SOS/Hazard request enqueued in WorkManager ($uniqueWorkName).")
         }
     }
 
@@ -70,6 +88,10 @@ class SosUploadWorker(
         val transport = inputData.getString(KEY_TRANSPORT) ?: "BOTH"
         val batteryRaw = inputData.getInt(KEY_BATTERY, -1)
         val battery = if (batteryRaw >= 0) batteryRaw else null
+        val waterDepthRaw = inputData.getInt(KEY_WATER_DEPTH, -1)
+        val waterDepthCm = if (waterDepthRaw >= 0) waterDepthRaw else null
+        val passability = inputData.getString(KEY_PASSABILITY)
+        val packetId = inputData.getString(KEY_PACKET_ID)
 
         val request = SosDispatchRequest(
             lat = lat,
@@ -78,7 +100,10 @@ class SosUploadWorker(
             category = category,
             message = message,
             transport = transport,
-            batteryPercentage = battery
+            batteryPercentage = battery,
+            waterDepthCm = waterDepthCm,
+            passability = passability,
+            packetId = packetId
         )
 
         Log.d(TAG, "Attempting to dispatch queued SOS to backend: lat=$lat, lng=$lng, cat=$category")

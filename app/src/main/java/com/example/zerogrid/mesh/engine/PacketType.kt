@@ -9,6 +9,7 @@ enum class PacketType {
     DIRECT_MESSAGE,
     CHANNEL_BROADCAST,
     SOS_BEACON,
+    HAZARD_BEACON,
     FILE_CHUNK,
     ACK
 }

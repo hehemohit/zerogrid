@@ -271,6 +271,8 @@ data class ProximityWarning(
     val category: String,
     val distanceMeters: Float,
     val waterDepthCm: Int,
-    val passability: String
+    val passability: String,
+    val hazardLat: Double = 0.0,
+    val hazardLng: Double = 0.0
 )
 

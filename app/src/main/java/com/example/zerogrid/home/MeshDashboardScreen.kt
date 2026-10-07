@@ -25,10 +25,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.zerogrid.location.LocationHelper
 import com.example.zerogrid.mesh.engine.MeshChannelMode
 import com.example.zerogrid.mesh.engine.MeshEngine
 import com.example.zerogrid.mesh.engine.MeshNode
 import com.example.zerogrid.navigation.Screen
+import com.example.zerogrid.ui.components.ProximityWarningBanner
 import com.example.zerogrid.ui.components.ZeroGridTopBar
 import com.example.zerogrid.ui.theme.BadgeGreen
 import com.example.zerogrid.ui.theme.ZeroGridTheme
@@ -44,10 +46,24 @@ fun MeshDashboardScreen(
     val rawPeers by meshEngine.connectedPeers.collectAsState()
     val isMeshActive by meshEngine.isMeshActive.collectAsState()
     val activeChannelMode by meshEngine.activeChannelMode.collectAsState()
+    val proximityWarning by meshEngine.proximityWarning.collectAsState()
     val peers = remember(rawPeers, activeChannelMode) {
         rawPeers.filter { it.transportType == activeChannelMode.transportName }
     }
     val colors = ZeroGridTheme.colors
+
+    // Periodically update user location for real-time proximity alerts
+    LaunchedEffect(Unit) {
+        while (true) {
+            try {
+                val loc = LocationHelper.getCurrentLocation(context)
+                if (loc != null) {
+                    meshEngine.updateUserLocation(loc.lat, loc.lng)
+                }
+            } catch (_: Exception) {}
+            kotlinx.coroutines.delay(10_000L)
+        }
+    }
 
     val batteryPercent by produceState(initialValue = 100, context) {
         value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -87,6 +103,17 @@ fun MeshDashboardScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp) // Added bottom padding to prevent sticking to the SOS button
                 ) {
+                    item(key = "proximity_warning_banner") {
+                        Box(
+                            modifier = Modifier
+                                .widthIn(max = 840.dp)
+                                .fillMaxWidth()
+                                .padding(bottom = 12.dp)
+                        ) {
+                            ProximityWarningBanner(warning = proximityWarning)
+                        }
+                    }
+
                     item(key = "hero_mesh_and_devices", contentType = "HeroSection") {
                         Box(
                             modifier = Modifier

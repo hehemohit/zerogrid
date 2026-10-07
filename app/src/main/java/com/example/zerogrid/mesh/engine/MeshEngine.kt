@@ -712,6 +712,17 @@ class MeshEngine private constructor(private val context: Context) {
         }
     }
 
+    var lastUserLocation: Pair<Double, Double>? = null
+        private set
+
+    /**
+     * Updates local device location and re-evaluates proximity geofences.
+     */
+    fun updateUserLocation(lat: Double, lng: Double) {
+        lastUserLocation = Pair(lat, lng)
+        computeProximityWarning(lat, lng)
+    }
+
     /**
      * Computes proximity to active hazards within 500m geofence and updates [_proximityWarning].
      */
@@ -733,7 +744,9 @@ class MeshEngine private constructor(private val context: Context) {
                 category = nearest.first.category,
                 distanceMeters = nearest.second,
                 waterDepthCm = nearest.first.waterDepthCm,
-                passability = nearest.first.passability
+                passability = nearest.first.passability,
+                hazardLat = nearest.first.lat,
+                hazardLng = nearest.first.lng
             )
         } else {
             _proximityWarning.value = null

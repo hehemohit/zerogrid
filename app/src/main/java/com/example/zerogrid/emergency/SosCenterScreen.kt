@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.zerogrid.mesh.engine.MeshEngine
 import com.example.zerogrid.mesh.engine.MeshPacket
 import com.example.zerogrid.navigation.Screen
+import com.example.zerogrid.ui.components.ProximityWarningBanner
 import com.example.zerogrid.ui.theme.*
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -38,6 +39,7 @@ fun SosCenterScreen(
     val alerts by meshEngine.sosAlerts.collectAsState()
     val peers by meshEngine.connectedPeers.collectAsState()
     val acknowledgedIds by meshEngine.acknowledgedAlertIds.collectAsState()
+    val proximityWarning by meshEngine.proximityWarning.collectAsState()
     val localNodeId = meshEngine.localNodeId
     val colors = ZeroGridTheme.colors
 
@@ -179,6 +181,13 @@ fun SosCenterScreen(
                         Box(modifier = Modifier.widthIn(max = 840.dp).fillMaxWidth()) {
                             EmergencySosStickyButton(onSendSosClick = { onNavigate(Screen.SEND_SOS) })
                         }
+                    }
+                }
+
+                // ── 1.25 PROXIMITY WARNING BANNER ───────────────────────────
+                item(key = "proximity_warning_banner") {
+                    Box(modifier = Modifier.widthIn(max = 840.dp).fillMaxWidth()) {
+                        ProximityWarningBanner(warning = proximityWarning)
                     }
                 }
 
